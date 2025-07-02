@@ -64,6 +64,11 @@ async def upload_dotmatics_csv(
         sds_downloads = 0
         errors = []
         
+        # Create a batch collector for CAS numbers
+        cas_batch = []
+        cas_batch_rows = {}  # To track which row each CAS came from
+        batch_size = 20  # Process 20 CAS numbers at once - adjust as needed
+        
         for row in csv_reader:
             total_records += 1
             logger.info(f"Processing row {total_records}: {row}")
@@ -127,29 +132,26 @@ async def upload_dotmatics_csv(
                         failed_imports += 1
                         continue
                 
-                # Download SDS if requested and chemical was successfully processed
+                # Add CAS numbers to batch if SDS download is requested and chemical was successfully processed
                 if download_sds and chemical_data['cas_number'] and successful_imports > 0:
                     # Check if SDS already exists for this chemical
                     sds_info = sds_manager.get_sds_info(chemical_data['cas_number'])
                     has_sds = sds_info and sds_info.get('sds_files')
                     
                     if not has_sds:
-                        try:
-                            logger.info(f"Attempting SDS download for CAS: {chemical_data['cas_number']}")
-                            print(f"Attempting SDS download for CAS: {chemical_data['cas_number']}", flush=True)
-                            sds_result = sds_manager.download_sds_batch([chemical_data['cas_number']])
-                            logger.info(f"SDS download result for {chemical_data['cas_number']}: {sds_result}")
-                            print(f"SDS download result for {chemical_data['cas_number']}: {sds_result}", flush=True)
-                            detail = sds_result['details'][0] if sds_result.get('details') else None
-                            if detail and detail['success']:
-                                sds_downloads += 1
-                            else:
-                                error_msg = detail['error'] if detail and 'error' in detail else 'Unknown error'
-                                errors.append(f"Row {total_records}: SDS download failed - {error_msg}")
-                        except Exception as e:
-                            logger.error(f"Exception during SDS download for {chemical_data['cas_number']}: {e}")
-                            print(f"Exception during SDS download for {chemical_data['cas_number']}: {e}", flush=True)
-                            errors.append(f"Row {total_records}: SDS download error - {str(e)}")
+                        # Add to the batch for processing
+                        cas_batch.append(chemical_data['cas_number'])
+                        cas_batch_rows[chemical_data['cas_number']] = total_records
+                        
+                        # Process batch when it reaches the desired size
+                        if len(cas_batch) >= batch_size:
+                            logger.info(f"Processing batch of {len(cas_batch)} SDS downloads")
+                            print(f"Processing batch of {len(cas_batch)} SDS downloads", flush=True)
+                            batch_result = process_cas_batch(cas_batch, cas_batch_rows, sds_manager)
+                            sds_downloads += batch_result['downloaded']
+                            errors.extend(batch_result['errors'])
+                            cas_batch = []
+                            cas_batch_rows = {}
                     else:
                         logger.info(f"SDS already exists for CAS: {chemical_data['cas_number']}")
                         print(f"SDS already exists for CAS: {chemical_data['cas_number']}", flush=True)
@@ -159,6 +161,14 @@ async def upload_dotmatics_csv(
                 errors.append(f"Row {total_records}: Processing error - {str(e)}")
                 failed_imports += 1
         
+        # Process any remaining CAS numbers in the batch
+        if cas_batch:
+            logger.info(f"Processing remaining batch of {len(cas_batch)} SDS downloads")
+            print(f"Processing remaining batch of {len(cas_batch)} SDS downloads", flush=True)
+            batch_result = process_cas_batch(cas_batch, cas_batch_rows, sds_manager)
+            sds_downloads += batch_result['downloaded']
+            errors.extend(batch_result['errors'])
+            
         return ImportResult(
             total_records=total_records,
             successful_imports=successful_imports,
@@ -172,6 +182,49 @@ async def upload_dotmatics_csv(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing CSV file: {str(e)}"
         )
+
+def process_cas_batch(cas_batch, cas_batch_rows, sds_manager):
+    """Process a batch of CAS numbers for SDS download
+    
+    Args:
+        cas_batch: List of CAS numbers to download SDS for
+        cas_batch_rows: Dictionary mapping CAS numbers to row numbers
+        sds_manager: SDSManager instance
+        
+    Returns:
+        Dict with download results and errors
+    """
+    result = {
+        "downloaded": 0,
+        "errors": []
+    }
+    
+    try:
+        logger.info(f"Downloading SDS batch for {len(cas_batch)} chemicals")
+        print(f"Starting batch download of {len(cas_batch)} SDS files...", flush=True)
+        
+        sds_result = sds_manager.download_sds_batch(cas_batch)
+        
+        # Process results
+        for detail in sds_result.get('details', []):
+            cas = detail.get('cas_number')
+            row = cas_batch_rows.get(cas, 'Unknown')
+            
+            if detail.get('success'):
+                result["downloaded"] += 1
+            else:
+                error_msg = detail.get('error', 'Unknown error')
+                result["errors"].append(f"Row {row}: SDS download failed - {error_msg}")
+                
+    except Exception as e:
+        logger.error(f"Exception during batch SDS download: {e}")
+        print(f"Exception during batch SDS download: {e}", flush=True)
+        for cas in cas_batch:
+            row = cas_batch_rows.get(cas, 'Unknown')
+            result["errors"].append(f"Row {row}: SDS batch download error - {str(e)}")
+    
+    return result
+
 
 @router.get("/template")
 async def get_csv_template():
