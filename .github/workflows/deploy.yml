@@ -1,0 +1,48 @@
+name: Deploy Application
+
+on:
+  push:
+    branches: [ main ]
+  # Enable manual triggering
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Only run after tests pass
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: Build application package
+      run: |
+        # Package the application
+        mkdir -p dist
+        tar -czf dist/application.tar.gz --exclude='.git' --exclude='venv' --exclude='__pycache__' --exclude='.github' .
+        
+    - name: Deploy to production
+      # Replace this with your actual deployment logic
+      # Examples: AWS, Azure, GCP deployment actions
+      run: |
+        echo "Deploying application to production server"
+        # This is a placeholder. In real-world scenarios, use secure deployment methods
+        # Such as SSH deployments with secrets, container deployments, etc.
+        # Examples:
+        # - Deploy to AWS: aws-actions/configure-aws-credentials
+        # - Deploy to Azure: azure/webapps-deploy
+        # - Deploy to GCP: google-github-actions/deploy-appengine
+        
+    - name: Notify deployment status
+      run: |
+        echo "Application deployed successfully"
