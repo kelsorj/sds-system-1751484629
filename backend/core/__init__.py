@@ -1,0 +1,1 @@
+# Core package for SDS/GHS Management System 

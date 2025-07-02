@@ -1,0 +1,51 @@
+# Core dependencies from original find_sds project
+urllib3==2.2.2
+beautifulsoup4==4.12.3
+idna==3.7
+chardet==4.0.0
+certifi==2024.7.4
+requests==2.32.3
+soupsieve==2.2.1
+pytest==8.3.1
+
+# Web framework and API
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.12.1
+
+# Data processing and validation
+pydantic==2.5.0
+pandas==2.1.4
+numpy==1.25.2
+
+# PDF processing
+PyPDF2==3.0.1
+reportlab==4.0.7
+
+# File handling
+python-magic==0.4.27
+pathlib2==2.3.7
+
+# Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.0
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3
+click==8.1.7
+
+# Development and testing
+black==23.11.0
+flake8==6.1.0
+pytest-cov==4.1.0
+pytest-asyncio==0.21.1
+
+# Optional: For enhanced PDF processing
+# pdfplumber==0.10.2
+# camelot-py[cv]==0.11.0 
