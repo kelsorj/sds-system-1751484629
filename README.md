@@ -124,3 +124,13 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Support
 
 For support and questions, please contact your system administrator or create an issue in the repository. 
+
+## Maintenance
+
+To keep the system running optimally:
+
+1. **Database Backup**: Schedule weekly backups of the chemical database
+2. **SDS Updates**: Check for updated SDS documents quarterly
+3. **Security Patches**: Apply security updates monthly
+4. **Usage Logs**: Review access and error logs monthly
+5. **Performance Monitoring**: Monitor system performance and optimize as needed
