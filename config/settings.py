@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # Database
-    DATABASE_URL: str = "sqlite:///./database/sds_system.db"
+    # Using remote PostgreSQL database for better performance with large numbers of molecules
+    DATABASE_URL: str = "postgresql://postgres:postgres@ekmbalps1.corp.eikontx.com:5432/postgres"
     
     # File Storage
     SDS_FILES_DIR: str = "./sds_files"
