@@ -71,44 +71,109 @@ def setup_stealth_driver():
         
         # Try to use Firefox first (since it's available on the system)
         try:
+            logger.info("Attempting to use Chrome WebDriver with explicit binary path")
+            # Configure Chrome options
+            options = ChromeOptions()
+            
+            # Set the binary location - check if Chromium exists in common CentOS locations
+            chromium_paths = [
+                '/usr/bin/chromium',
+                '/usr/bin/chromium-browser',
+                '/usr/bin/google-chrome',
+                '/opt/google/chrome/chrome'
+            ]
+            
+            chromium_binary = None
+            for path in chromium_paths:
+                if os.path.exists(path):
+                    chromium_binary = path
+                    break
+            
+            if chromium_binary:
+                logger.info(f"Found browser at: {chromium_binary}")
+                options.binary_location = chromium_binary
+            else:
+                logger.warning("Could not find Chrome/Chromium binary. Will try Firefox.")
+                raise Exception("Chrome binary not found")
+            
+            # Set user agent and other stealth options
+            options.add_argument(f'--user-agent={user_agent}')
+            options.add_argument("--disable-blink-features=AutomationControlled")
+            options.add_argument('--disable-extensions')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--ignore-certificate-errors')
+            options.add_argument('--ignore-ssl-errors')
+            options.add_argument('--disable-infobars')
+            options.add_argument('--window-size=1920,1080')
+            options.add_argument('--start-maximized')
+            # options.add_argument('--headless=new')  # Uncomment if headless mode is preferred
+            
+            # Add experimental flags
+            options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+            options.add_experimental_option("useAutomationExtension", False)
+            
+            # Additional preferences to help evade detection
+            prefs = {
+                "profile.default_content_setting_values.notifications": 2,
+                "credentials_enable_service": False,
+                "profile.password_manager_enabled": False,
+                "webrtc.ip_handling_policy": "disable_non_proxied_udp",
+                "webrtc.multiple_routes_enabled": False,
+                "webrtc.nonproxied_udp_enabled": False
+            }
+            options.add_experimental_option("prefs", prefs)
+            
+            # Create Chrome driver with explicit binary path
+            driver_path = ChromeDriverManager().install()
+            service = ChromeService(driver_path)
+            driver = webdriver.Chrome(service=service, options=options)
+            
+            logger.info("Chrome WebDriver initialized successfully")
+            
+        except Exception as chrome_error:
+            logger.warning(f"Failed to initialize Chrome: {chrome_error}")
+            
+            # Try Firefox as fallback
             logger.info("Attempting to use Firefox WebDriver")
-            # Configure Firefox options
-            options = FirefoxOptions()
-            
-            # Set user agent
-            options.set_preference("general.useragent.override", user_agent)
-            
-            # Disable WebRTC to prevent leaks
-            options.set_preference("media.peerconnection.enabled", False)
-            options.set_preference("media.navigator.enabled", False)
-            
-            # Disable various features that can be used for fingerprinting
-            options.set_preference("privacy.resistFingerprinting", True)
-            options.set_preference("privacy.trackingprotection.enabled", True)
-            
-            # Disable notifications and password saving
-            options.set_preference("dom.webnotifications.enabled", False)
-            options.set_preference("signon.rememberSignons", False)
-            
-            # Optional: Use headless mode if needed
-            # options.add_argument("-headless")
-            
-            # Set window size
-            options.add_argument("--width=1920")
-            options.add_argument("--height=1080")
-            
-            # Get GeckoDriver path and create service
-            driver_path = GeckoDriverManager().install()
-            service = FirefoxService(executable_path=driver_path)
-            
-            # Create Firefox driver
-            driver = webdriver.Firefox(service=service, options=options)
-            
-            logger.info("Firefox WebDriver initialized successfully")
-            
-        except Exception as firefox_error:
-            logger.warning(f"Failed to initialize Firefox: {firefox_error}")
-            logger.info("Falling back to Chrome WebDriver")
+            try:
+                # Configure Firefox options
+                options = FirefoxOptions()
+                
+                # Set user agent
+                options.set_preference("general.useragent.override", user_agent)
+                
+                # Disable WebRTC to prevent leaks
+                options.set_preference("media.peerconnection.enabled", False)
+                options.set_preference("media.navigator.enabled", False)
+                
+                # Disable various features that can be used for fingerprinting
+                options.set_preference("privacy.resistFingerprinting", True)
+                options.set_preference("privacy.trackingprotection.enabled", True)
+                
+                # Disable notifications and password saving
+                options.set_preference("dom.webnotifications.enabled", False)
+                options.set_preference("signon.rememberSignons", False)
+                
+                # Optional: Use headless mode if needed
+                # options.add_argument("-headless")
+                
+                # Set window size
+                options.add_argument("--width=1920")
+                options.add_argument("--height=1080")
+                
+                # Get GeckoDriver path and create service
+                driver_path = GeckoDriverManager().install()
+                service = FirefoxService(executable_path=driver_path)
+                
+                # Create Firefox driver
+                driver = webdriver.Firefox(service=service, options=options)
+                
+                logger.info("Firefox WebDriver initialized successfully")
+            except Exception as firefox_error:
+                logger.warning(f"Failed to initialize Firefox: {firefox_error}")
+                logger.info("Falling back to Chrome WebDriver")
             
             # Configure Chrome options for maximum stealth
             options = ChromeOptions()
@@ -231,6 +296,163 @@ def simulate_human_behavior(driver):
         logger.debug("Simulated human behavior")
     except Exception as e:
         logger.debug(f"Error in simulate_human_behavior: {e}")
+
+def download_sds_with_requests(product_id, code, max_retries=3):
+    """Download SDS PDF for a specific product ID and product code using direct HTTP requests with retry logic"""
+    # Import the BeautifulSoup module for HTML parsing if needed
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        logger.error("BeautifulSoup is not installed. Installing now...")
+        try:
+            subprocess.check_call(["pip", "install", "beautifulsoup4"])
+            from bs4 import BeautifulSoup
+        except Exception as e:
+            logger.error(f"Failed to install BeautifulSoup: {e}")
+            return False
+    
+    output_file = os.path.join(OUTPUT_DIR, f"{product_id}_{code}_SDS.pdf")
+    
+    # Skip if file already exists
+    if os.path.exists(output_file):
+        logger.info(f"Skipping {output_file} - already exists")
+        return True
+    
+    logger.info(f"Attempting SDS download for product ID {product_id} with code {code}")
+    
+    # Create requests session with advanced browser-like headers
+    session = requests.Session()
+    user_agent = random.choice(USER_AGENTS)
+    headers = {
+        'User-Agent': user_agent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'sec-ch-ua': '"Google Chrome";v="113", "Chromium";v="113", "Not-A.Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+        'sec-fetch-user': '?1',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache',
+        'DNT': '1',
+        'Referer': 'https://www.sigmaaldrich.com/US/en/product/search'
+    }
+    
+    # Direct SDS URL for this product ID and code
+    sds_url = f"https://www.sigmaaldrich.com/US/en/sds/{code}/{product_id}?userType=anonymous"
+    logger.info(f"Using SDS URL: {sds_url}")
+    
+    # Try multiple times with increasing delays between attempts
+    for attempt in range(1, max_retries + 1):
+        try:
+            logger.info(f"Download attempt {attempt} of {max_retries}...")
+            
+            # Get the SDS page with extended timeout
+            response = session.get(sds_url, headers=headers, timeout=60, allow_redirects=True)
+            
+            # Save the response for debugging
+            debug_file = os.path.join(PAGE_SOURCE_DIR, f"{product_id}_{code}_attempt{attempt}.bin")
+            with open(debug_file, 'wb') as f:
+                f.write(response.content)
+            
+            if response.status_code == 200:
+                logger.info(f"Got successful response on attempt {attempt}")
+                
+                # Check if the response is already a PDF file (direct content)
+                if response.content[:4] == b'%PDF':
+                    logger.info("Response is a direct PDF! Saving...")
+                    with open(output_file, 'wb') as f:
+                        f.write(response.content)
+                    logger.info(f"Successfully saved SDS PDF to {output_file}")
+                    return True
+                    
+                # If it's not a direct PDF, try to parse as HTML to find PDF links
+                logger.info("Response is not a direct PDF. Checking for PDF links...")
+                try:
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    # Look for PDF links in the page
+                    pdf_links = []
+                    for link in soup.find_all('a', href=True):
+                        href = link.get('href')
+                        if '.pdf' in href.lower() or 'getpdf' in href.lower() or 'download' in href.lower():
+                            pdf_links.append(href)
+                            logger.info(f"Found potential PDF link: {href}")
+                    
+                    # Also check for PDF objects/embeds
+                    for embed in soup.find_all(['embed', 'object']):
+                        if embed.get('src') and '.pdf' in embed.get('src').lower():
+                            pdf_links.append(embed.get('src'))
+                            logger.info(f"Found PDF embed: {embed.get('src')}")
+                    
+                    # Look for PDF objects with type attribute
+                    pdf_embeds = soup.find_all(['embed', 'object'], attrs={'type': 'application/pdf'})
+                    for embed in pdf_embeds:
+                        embed_src = embed.get('src') or embed.get('data')
+                        if embed_src:
+                            pdf_links.append(embed_src)
+                            logger.info(f"Found PDF object with type attribute: {embed_src}")
+                    
+                    # Handle any PDF links found
+                    if pdf_links:
+                        base_url = "https://www.sigmaaldrich.com"
+                        for link in pdf_links:
+                            try:
+                                # Handle relative URLs
+                                if not link.startswith('http'):
+                                    if link.startswith('/'):
+                                        link = f"{base_url}{link}"
+                                    else:
+                                        link = f"{base_url}/{link}"
+                                
+                                logger.info(f"Attempting to download PDF from link: {link}")
+                                pdf_response = session.get(link, headers=headers, timeout=60)
+                                
+                                # Check if response is a PDF
+                                content_type = pdf_response.headers.get('Content-Type', '')
+                                if 'application/pdf' in content_type.lower() or pdf_response.content[:4] == b'%PDF':
+                                    # Save the PDF
+                                    with open(output_file, 'wb') as f:
+                                        f.write(pdf_response.content)
+                                    logger.info(f"Successfully downloaded PDF to {output_file}")
+                                    return True
+                            except Exception as e:
+                                logger.error(f"Error downloading PDF from link: {e}")
+                    else:
+                        logger.warning(f"No PDF links found in the HTML response")
+                except Exception as e:
+                    logger.error(f"Error parsing HTML: {e}")
+            else:
+                logger.warning(f"HTTP error {response.status_code} on attempt {attempt}")
+            
+            # Wait longer between retries with exponential backoff
+            if attempt < max_retries:
+                wait_time = random.uniform(5, 10) * attempt
+                logger.info(f"Waiting {wait_time:.1f} seconds before next attempt...")
+                time.sleep(wait_time)
+                
+        except requests.exceptions.Timeout:
+            logger.warning(f"Request timed out on attempt {attempt}")
+            if attempt < max_retries:
+                wait_time = random.uniform(5, 10) * attempt
+                logger.info(f"Waiting {wait_time:.1f} seconds before retry...")
+                time.sleep(wait_time)
+        except Exception as e:
+            logger.error(f"Error on attempt {attempt}: {e}")
+            if attempt < max_retries:
+                wait_time = random.uniform(5, 10) * attempt
+                logger.info(f"Waiting {wait_time:.1f} seconds before retry...")
+                time.sleep(wait_time)
+    
+    # If we get here, all attempts failed
+    logger.error(f"Failed to download SDS for {product_id} with code {code} after {max_retries} attempts")
+    failed_downloads.append(f"{product_id},{code},FAILED,{datetime.now()}")
+    return False
 
 def download_sds_with_selenium(product_id, code):
     """Download SDS PDF for a specific product ID and product code using Selenium"""
@@ -468,22 +690,122 @@ def download_sds_with_selenium(product_id, code):
     
     return False
 
-def process_product_id(product_id):
-    """Process a single product ID, trying various product codes"""
-    # Sigma-Aldrich has several product line codes
-    product_codes = ['sigald', 'sigma', 'aldrich', 'sial']
+def find_product_by_cas(cas_number):
+    """Find product IDs by CAS number using the Sigma Aldrich search"""
+    # Create requests session with custom headers
+    session = requests.Session()
+    headers = {
+        'User-Agent': random.choice(USER_AGENTS),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache'
+    }
     
-    for code in product_codes:
-        try:
-            success = download_sds_with_selenium(product_id, code)
-            if success:
-                return True
+    search_url = f"https://www.sigmaaldrich.com/US/en/search/{cas_number}?focus=products&page=1&perpage=30&sort=relevance&term={cas_number}&type=cas_number"
+    logger.info(f"Searching by CAS number: {cas_number} at URL: {search_url}")
+    
+    try:
+        response = session.get(search_url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            # Save the search results page for debugging
+            search_results_file = os.path.join(PAGE_SOURCE_DIR, f"cas_search_{cas_number}.html")
+            with open(search_results_file, 'wb') as f:
+                f.write(response.content)
+            logger.info(f"Saved search results to {search_results_file}")
+            
+            # Parse the HTML to find product IDs
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Look for product IDs in the search results
+            # This will need to be adjusted based on the actual HTML structure
+            product_ids = []
+            
+            # Look for links to product details
+            for link in soup.find_all('a', href=True):
+                href = link.get('href')
+                # Look for product detail links which often contain product IDs
+                if '/product/' in href:
+                    # Extract the product ID from the URL
+                    parts = href.split('/')
+                    if len(parts) > 2:
+                        potential_id = parts[-1]
+                        # Check if it looks like a product ID (numeric)
+                        if potential_id.isdigit():
+                            product_ids.append(potential_id)
+                            logger.info(f"Found potential product ID: {potential_id}")
+            
+            # Remove duplicates
+            product_ids = list(set(product_ids))
+            
+            if product_ids:
+                logger.info(f"Found {len(product_ids)} product IDs for CAS {cas_number}: {product_ids}")
+                return product_ids
+            else:
+                logger.warning(f"No product IDs found for CAS {cas_number}")
+                return []
                 
-            # Sleep a bit between attempts to avoid overwhelming the server
-            time.sleep(random.uniform(1.0, 3.0))
-        except Exception as e:
-            logger.error(f"Error processing {product_id} with code {code}: {e}")
+        else:
+            logger.warning(f"Search for CAS {cas_number} failed with status code: {response.status_code}")
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error searching by CAS {cas_number}: {e}")
+        return []
+
+def process_product_id(product_id, vendor_code='sigald'):
+    """Process a product ID to download its SDS using HTTP requests with retry logic, falling back to Selenium if needed"""
+    logger.info(f"Processing product ID: {product_id} with vendor code: {vendor_code}")
     
+    # Sleep for a short random time to avoid overwhelming the site and triggering bot detection
+    time.sleep(random.uniform(2.0, 5.0))
+    
+    # Create a list of vendor codes to try in order (first is highest priority)
+    codes_to_try = ['sigald', vendor_code, 'sigma', 'aldrich', 'sial', 'supelco']
+    
+    # Remove duplicates while preserving order
+    unique_codes = []
+    for code in codes_to_try:
+        if code not in unique_codes:
+            unique_codes.append(code)
+    codes_to_try = unique_codes
+    
+    # Try direct HTTP requests first with each code (faster and more reliable from our tests)
+    for code in codes_to_try:
+        logger.info(f"Attempting to download SDS for product ID {product_id} with vendor code {code}")
+        success = download_sds_with_requests(product_id, code, max_retries=3)
+        if success:
+            logger.info(f"✅ Successfully downloaded SDS for product ID {product_id} with code {code} using HTTP requests")
+            return True
+    
+    # If all HTTP requests failed, try Selenium as a fallback if browser is available
+    logger.info("Direct HTTP requests failed. Checking if browser automation is available...")
+    driver = None
+    try:
+        # Only attempt Selenium if a supported browser is installed
+        driver = setup_stealth_driver()
+        if driver:
+            logger.info(f"Browser found! Attempting with Selenium for product ID {product_id}")
+            for code in codes_to_try:
+                if download_sds_with_selenium(product_id, code):
+                    logger.info(f"✅ Successfully downloaded SDS for product ID {product_id} with code {code} using Selenium")
+                    return True
+        else:
+            logger.warning("No supported browser found for Selenium. Cannot use fallback method.")
+    except Exception as e:
+        logger.error(f"Selenium automation error: {e}")
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except Exception as e:
+                logger.debug(f"Error quitting driver: {e}")
+    
+    logger.error(f"❌ Failed to download SDS for product ID {product_id} with all methods and codes")
     return False
 
 def save_successful_downloads():
