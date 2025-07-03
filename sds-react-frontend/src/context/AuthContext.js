@@ -4,50 +4,36 @@ import api from '../services/api';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Create a default user for automatic authentication
+  const defaultUser = {
+    id: 1,
+    email: 'admin@example.com',
+    name: 'Admin User',
+    role: 'admin'
+  };
+  
+  const [user, setUser] = useState(defaultUser); // Automatically set the default user
+  const [loading, setLoading] = useState(false); // Set loading to false initially
   const [error, setError] = useState(null);
 
-  // Check if user is already authenticated on component mount
+  // Auto-authenticate on component mount - bypassing actual authentication
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('authToken');
-      
-      if (token) {
-        try {
-          // Validate token with backend
-          const response = await api.get('/auth/me');
-          setUser(response.data);
-        } catch (err) {
-          // Token invalid, clear it
-          localStorage.removeItem('authToken');
-          setError('Session expired. Please login again.');
-        }
-      }
-      
-      setLoading(false);
-    };
-
-    checkAuth();
+    // Create a dummy token and store it
+    const dummyToken = 'auto-auth-token';
+    localStorage.setItem('authToken', dummyToken);
+    
+    // No need to check with the backend - we're bypassing authentication
+    setLoading(false);
   }, []);
 
-  // Login function
+  // Auto-login function - always succeeds without API call
   const login = async (credentials) => {
-    setLoading(true);
-    try {
-      const response = await api.post('/auth/login', credentials);
-      const { token, user: userData } = response.data;
-      
-      localStorage.setItem('authToken', token);
-      setUser(userData);
-      setError(null);
-      return true;
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
-      return false;
-    } finally {
-      setLoading(false);
-    }
+    // No need to call API - just set the user directly
+    const dummyToken = 'auto-auth-token';
+    localStorage.setItem('authToken', dummyToken);
+    setUser(defaultUser);
+    setError(null);
+    return true;
   };
 
   // Logout function
@@ -68,6 +54,7 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// Export the useAuth hook
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
