@@ -56,12 +56,27 @@ const Dashboard = () => {
         setLoading(true);
         
         // Get total chemicals count
-        const chemicalsResponse = await chemicalService.getChemicals({ limit: 1, offset: 0 });
-        const totalChemicals = chemicalsResponse.headers['x-total-count'] || await chemicalService.getChemicalsCount();
+        let totalChemicals = 0;
+        try {
+          const chemicalsResponse = await chemicalService.getChemicals({ limit: 1, offset: 0 });
+          if (chemicalsResponse.headers && chemicalsResponse.headers['x-total-count']) {
+            totalChemicals = parseInt(chemicalsResponse.headers['x-total-count']);
+          } else {
+            totalChemicals = await chemicalService.getChemicalsCount();
+          }
+        } catch (error) {
+          console.error('Error getting chemicals count:', error);
+          totalChemicals = await chemicalService.getChemicalsCount();
+        }
         
         // Get SDS files count
-        const sdsResponse = await sdsService.getSdsFiles();
-        const chemicalsWithSds = sdsResponse.data.length;
+        let chemicalsWithSds = 0;
+        try {
+          const sdsResponse = await sdsService.getSdsFiles();
+          chemicalsWithSds = sdsResponse.data ? sdsResponse.data.length : 0;
+        } catch (error) {
+          console.error('Error getting SDS files:', error);
+        }
         
         // Calculate pending SDS downloads
         const pendingSdsDownloads = totalChemicals - chemicalsWithSds;

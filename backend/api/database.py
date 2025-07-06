@@ -9,7 +9,12 @@ from config.settings import settings
 # Create database engine
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+    # SQLite-specific parameter not needed for PostgreSQL
+    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {},
+    # Add PostgreSQL specific parameters for better performance
+    pool_pre_ping=True,
+    pool_size=10,
+    pool_recycle=3600
 )
 
 # Create session factory

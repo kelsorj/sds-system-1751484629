@@ -1,6 +1,11 @@
 import api from './api';
 
 export const sdsService = {
+  // Get all SDS files
+  getSdsFiles: async () => {
+    const response = await api.get('/sds');
+    return response;
+  },
   // Get SDS information for a chemical by CAS number
   getSdsInfo: async (casNumber) => {
     const response = await api.get(`/sds/${casNumber}`);

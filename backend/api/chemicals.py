@@ -210,4 +210,10 @@ async def get_chemical_transactions(
             detail=f"Chemical with CAS {cas_number} not found"
         )
     
-    return transactions 
+    return transactions
+
+@router.get("/summary", response_model=Dict[str, Any])
+async def get_chemicals_summary(db: Session = Depends(get_db)):
+    """Get summary statistics for chemicals inventory"""
+    inventory_manager = InventoryManager(db)
+    return inventory_manager.get_inventory_summary() 

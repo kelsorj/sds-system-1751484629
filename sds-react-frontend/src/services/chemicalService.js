@@ -4,6 +4,18 @@ export const chemicalService = {
   // Get all chemicals with optional filtering
   getChemicals: async (filters = {}) => {
     const response = await api.get('/chemicals', { params: filters });
+    return response;
+  },
+  
+  // Get total count of chemicals
+  getChemicalsCount: async () => {
+    const response = await api.get('/chemicals');
+    return response.data.length;
+  },
+  
+  // Get inventory summary statistics
+  getInventorySummary: async () => {
+    const response = await api.get('/chemicals/summary');
     return response.data;
   },
   

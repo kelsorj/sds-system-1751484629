@@ -48,30 +48,20 @@ const ChemicalList = () => {
   const fetchChemicals = async () => {
     try {
       setLoading(true);
-      // In a real app, you would fetch this data from your backend
-      // Here we're simulating it for demonstration
-      // const response = await chemicalService.getChemicals();
-      // setChemicals(response.data);
+      // Fetch real data from the backend
+      const response = await chemicalService.getChemicals();
+      console.log('Fetched chemicals from API:', response.data);
       
-      // Simulate API delay and data
-      setTimeout(() => {
-        const mockChemicals = [
-          { cas_number: '67-64-1', name: 'Acetone', molecular_formula: 'C3H6O', quantity: 500, unit: 'g', has_sds: true },
-          { cas_number: '64-17-5', name: 'Ethanol', molecular_formula: 'C2H5OH', quantity: 1000, unit: 'mL', has_sds: true },
-          { cas_number: '7732-18-5', name: 'Water', molecular_formula: 'H2O', quantity: 5000, unit: 'mL', has_sds: false },
-          { cas_number: '75-09-2', name: 'Dichloromethane', molecular_formula: 'CH2Cl2', quantity: 250, unit: 'mL', has_sds: true },
-          { cas_number: '67-68-5', name: 'Dimethyl sulfoxide', molecular_formula: 'C2H6OS', quantity: 100, unit: 'mL', has_sds: true },
-          { cas_number: '67-56-1', name: 'Methanol', molecular_formula: 'CH3OH', quantity: 1000, unit: 'mL', has_sds: true },
-          { cas_number: '71-43-2', name: 'Benzene', molecular_formula: 'C6H6', quantity: 100, unit: 'mL', has_sds: false },
-          { cas_number: '108-88-3', name: 'Toluene', molecular_formula: 'C7H8', quantity: 500, unit: 'mL', has_sds: true },
-          { cas_number: '108-95-2', name: 'Phenol', molecular_formula: 'C6H5OH', quantity: 250, unit: 'g', has_sds: true },
-          { cas_number: '108-94-1', name: 'Cyclohexanone', molecular_formula: 'C6H10O', quantity: 100, unit: 'mL', has_sds: false },
-          { cas_number: '872-50-4', name: 'N-Methyl-2-pyrrolidone', molecular_formula: 'C5H9NO', quantity: 500, unit: 'mL', has_sds: true },
-          { cas_number: '110-54-3', name: 'Hexane', molecular_formula: 'C6H14', quantity: 1000, unit: 'mL', has_sds: true },
-        ];
-        setChemicals(mockChemicals);
-        setLoading(false);
-      }, 1000);
+      // Transform the data to include has_sds property
+      const chemicalsWithSdsInfo = response.data.map(chemical => {
+        return {
+          ...chemical,
+          has_sds: Boolean(chemical.hazard_statement) // Assuming chemicals with hazard statements have SDS
+        };
+      });
+      
+      setChemicals(chemicalsWithSdsInfo);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching chemicals:', error);
       setLoading(false);
