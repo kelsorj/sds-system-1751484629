@@ -22,7 +22,12 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop sds-react-frontend",
+    "pm2:restart": "pm2 restart sds-react-frontend",
+    "pm2:delete": "pm2 delete sds-react-frontend",
+    "pm2:logs": "pm2 logs sds-react-frontend"
   },
   "eslintConfig": {
     "extends": [

@@ -324,7 +324,6 @@ Thumbs.db
 # Project specific
 uploads/
 sds_files/
-database/
 logs/
 reports/
 *.csv

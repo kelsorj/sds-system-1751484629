@@ -53,24 +53,35 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // In a real app, you would fetch this data from your backend
-        // Here we're simulating it for demonstration
-        // const dashboardData = await api.get('/dashboard/stats');
+        setLoading(true);
         
-        // Simulate API call delay
-        setTimeout(() => {
-          setStats({
-            totalChemicals: 156,
-            chemicalsWithSds: 143,
-            pendingSdsDownloads: 13,
-            recentActivity: [
-              { id: 1, type: 'import', message: 'Imported 15 new chemicals', timestamp: '2 hours ago', status: 'success' },
-              { id: 2, type: 'download', message: 'Downloaded SDS for Acetone (67-64-1)', timestamp: '3 hours ago', status: 'success' },
-              { id: 3, type: 'error', message: 'Failed to download SDS for Benzene (71-43-2)', timestamp: '5 hours ago', status: 'error' }
-            ]
-          });
-          setLoading(false);
-        }, 1000);
+        // Get total chemicals count
+        const chemicalsResponse = await chemicalService.getChemicals({ limit: 1, offset: 0 });
+        const totalChemicals = chemicalsResponse.headers['x-total-count'] || await chemicalService.getChemicalsCount();
+        
+        // Get SDS files count
+        const sdsResponse = await sdsService.getSdsFiles();
+        const chemicalsWithSds = sdsResponse.data.length;
+        
+        // Calculate pending SDS downloads
+        const pendingSdsDownloads = totalChemicals - chemicalsWithSds;
+        
+        // Get recent activity (this would ideally come from an API endpoint)
+        // For now, we'll keep the sample activity data
+        const recentActivity = [
+          { id: 1, type: 'import', message: 'Imported chemicals from database', timestamp: 'Recently', status: 'success' },
+          { id: 2, type: 'download', message: 'Downloaded SDS for Acetone (67-64-1)', timestamp: 'Recently', status: 'success' },
+          { id: 3, type: 'info', message: 'Database migrated to PostgreSQL', timestamp: 'Recently', status: 'info' }
+        ];
+        
+        setStats({
+          totalChemicals: parseInt(totalChemicals),
+          chemicalsWithSds,
+          pendingSdsDownloads,
+          recentActivity
+        });
+        
+        setLoading(false);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         setLoading(false);
