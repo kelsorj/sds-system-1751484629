@@ -22,7 +22,7 @@ const Settings = () => {
     notifications: true,
     autoDownloadSDS: false,
     darkMode: false,
-    apiBaseUrl: 'http://localhost:8000',
+    apiBaseUrl: 'http://localhost:6443/api',
     batchSize: 5
   });
   
@@ -147,7 +147,7 @@ const Settings = () => {
                   value={settings.apiBaseUrl}
                   onChange={handleChange}
                   variant="outlined"
-                  placeholder="http://localhost:8000"
+                  placeholder="http://localhost:6443/api"
                   helperText="URL of the backend API server"
                 />
               </Box>
