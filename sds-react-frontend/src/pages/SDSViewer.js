@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Box, Typography, Paper, Grid, Card, CardContent, Button, CircularProgress, Alert, IconButton, Stack } from '@mui/material';
+import { Box, Typography, Paper, Grid, Card, CardContent, Button, CircularProgress, Alert, IconButton, Stack, TextField, Chip, Autocomplete, Checkbox, FormControlLabel, Snackbar } from '@mui/material';
 import { GetApp as GetAppIcon, Error as ErrorIcon, CheckCircle as CheckCircleIcon, ZoomIn, ZoomOut, Fullscreen, FullscreenExit, FileOpen, Download } from '@mui/icons-material';
 import { sdsService } from '../services/sdsService';
 import { chemicalService } from '../services/chemicalService';
+import MuiAlert from '@mui/material/Alert';
 
 const SDSViewer = () => {
   const { casNumber } = useParams();
@@ -18,65 +19,30 @@ const SDSViewer = () => {
   const [pdfError, setPdfError] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Format date for display
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '-';
-      return date.toISOString().split('T')[0];
-    } catch (error) {
-      console.log('Error parsing date:', error);
-      return '-';
-    }
-  };
-  
-  // Helper function to parse array/string data
-  const parseArrayData = (data) => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
-    if (typeof data === 'string') {
+  // GHS editable state
+  const [ghsData, setGhsData] = useState({
+    pictograms: [],
+    hazard_statements: [],
+    precautionary_statements: [],
+    signal_word: '',
+    flammable: false,
+    toxic: false,
+    corrosive: false
+  });
+  const [saveStatus, setSaveStatus] = useState(null);
+
+  // Helper to parse GHS fields
+  const parseGhsField = (field) => {
+    if (!field) return [];
+    if (Array.isArray(field)) return field;
+    if (typeof field === 'string') {
       try {
-        return JSON.parse(data);
+        return JSON.parse(field);
       } catch (e) {
-        return data.replace(/[\[\]'"]/g, '').split(',').map(item => item.trim()).filter(item => item);
+        return field.replace(/[\[\]'"\n]/g, '').split(',').map(item => item.trim()).filter(item => item);
       }
     }
     return [];
-  };
-
-  // Download SDS PDF
-  const downloadSds = () => {
-    console.log('Downloading SDS with data:', sdsData);
-    if (!sdsData || !sdsData.file_path) {
-      console.error('No file path available for download');
-      setDownloadStatus('error');
-      setTimeout(() => setDownloadStatus(null), 3000);
-      return;
-    }
-    
-    try {
-      console.log('Downloading SDS with file path:', sdsData.file_path);
-      setDownloadStatus('downloading');
-      const encodedFilePath = encodeURIComponent(sdsData.file_path);
-      // Use attachment disposition for download
-      const downloadUrl = `/api/sds/download/${encodedFilePath}?disposition=attachment`;
-      
-      // Open the download URL in a new tab
-      window.open(downloadUrl, '_blank');
-      
-      setTimeout(() => {
-        setDownloadStatus('success');
-        // Clear success message after 3 seconds
-        setTimeout(() => setDownloadStatus(null), 3000);
-      }, 1000);
-      
-    } catch (err) {
-      console.error('Error downloading SDS:', err);
-      setDownloadStatus('error');
-      // Clear error message after 3 seconds
-      setTimeout(() => setDownloadStatus(null), 3000);
-    }
   };
 
   // Fetch chemical and SDS data
@@ -124,6 +90,22 @@ const SDSViewer = () => {
     fetchData();
   }, [casNumber]);
   
+  // When SDS data loads, parse GHS info
+  useEffect(() => {
+    if (sdsData && (sdsData.ghs_data || sdsData)) {
+      const ghs = sdsData.ghs_data || sdsData;
+      setGhsData({
+        pictograms: parseGhsField(ghs.pictograms),
+        hazard_statements: parseGhsField(ghs.hazard_statements),
+        precautionary_statements: parseGhsField(ghs.precautionary_statements),
+        signal_word: ghs.signal_word || '',
+        flammable: !!ghs.flammable,
+        toxic: !!ghs.toxic,
+        corrosive: !!ghs.corrosive
+      });
+    }
+  }, [sdsData]);
+
   // Load PDF when SDS data is available
   useEffect(() => {
     if (sdsData && sdsData.file_path) {
@@ -168,6 +150,83 @@ const SDSViewer = () => {
   const precautionaryStatements = sdsData?.ghs_data?.precautionary_statements ? parseArrayData(sdsData.ghs_data.precautionary_statements) : [];
   const pictograms = sdsData?.ghs_data?.pictograms ? parseArrayData(sdsData.ghs_data.pictograms) : [];
   
+  // Handler for GHS field changes
+  const handleGhsChange = (field, value) => {
+    setGhsData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Save handler (stub)
+  const saveGhsData = async () => {
+    // TODO: Replace with real API call
+    setSaveStatus('saving');
+    setTimeout(() => {
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus(null), 2000);
+    }, 1000);
+    // Example: await sdsService.updateGhsInfo(casNumber, ghsData);
+  };
+
+  // Download SDS PDF
+  const downloadSds = () => {
+    console.log('Downloading SDS with data:', sdsData);
+    if (!sdsData || !sdsData.file_path) {
+      console.error('No file path available for download');
+      setDownloadStatus('error');
+      setTimeout(() => setDownloadStatus(null), 3000);
+      return;
+    }
+    
+    try {
+      console.log('Downloading SDS with file path:', sdsData.file_path);
+      setDownloadStatus('downloading');
+      const encodedFilePath = encodeURIComponent(sdsData.file_path);
+      // Use attachment disposition for download
+      const downloadUrl = `/api/sds/download/${encodedFilePath}?disposition=attachment`;
+      
+      // Open the download URL in a new tab
+      window.open(downloadUrl, '_blank');
+      
+      setTimeout(() => {
+        setDownloadStatus('success');
+        // Clear success message after 3 seconds
+        setTimeout(() => setDownloadStatus(null), 3000);
+      }, 1000);
+      
+    } catch (err) {
+      console.error('Error downloading SDS:', err);
+      setDownloadStatus('error');
+      // Clear error message after 3 seconds
+      setTimeout(() => setDownloadStatus(null), 3000);
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '-';
+      return date.toISOString().split('T')[0];
+    } catch (error) {
+      console.log('Error parsing date:', error);
+      return '-';
+    }
+  };
+  
+  // Helper function to parse array/string data
+  const parseArrayData = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (typeof data === 'string') {
+      try {
+        return JSON.parse(data);
+      } catch (e) {
+        return data.replace(/[\[\]'"]/g, '').split(',').map(item => item.trim()).filter(item => item);
+      }
+    }
+    return [];
+  };
+
   // Render content
   return (
     <Box>
@@ -322,66 +381,85 @@ const SDSViewer = () => {
             Download PDF
           </Button>
         </Box>
-        {/* GHS Info Section */}
+        {/* GHS Info Section (editable) */}
         <Box sx={{ width: '100%', mt: 3 }}>
           <Card variant="outlined">
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                GHS Information
+                GHS Information (Editable)
               </Typography>
-              {pictograms.length > 0 && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>Pictograms:</Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {pictograms.map((pic, idx) => (
-                      <Box
-                        key={idx}
-                        sx={{
-                          p: 1,
-                          border: '1px solid #ddd',
-                          borderRadius: 1,
-                          display: 'inline-block'
-                        }}
-                      >
-                        {pic}
-                      </Box>
-                    ))}
-                  </Box>
-                </Box>
-              )}
-              {hazardStatements.length > 0 && (
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  <strong>Hazard Statements:</strong>
-                  <ul style={{ paddingLeft: '20px', marginTop: '4px' }}>
-                    {hazardStatements.map((statement, idx) => (
-                      <li key={idx}>{statement}</li>
-                    ))}
-                  </ul>
-                </Typography>
-              )}
-              {precautionaryStatements.length > 0 && (
-                <Typography variant="body2">
-                  <strong>Precautionary Statements:</strong>
-                  <ul style={{ paddingLeft: '20px', marginTop: '4px' }}>
-                    {precautionaryStatements.map((statement, idx) => (
-                      <li key={idx}>{statement}</li>
-                    ))}
-                  </ul>
-                </Typography>
-              )}
-              <Typography variant="body2" sx={{ mt: 2 }}>
-                <strong>Signal Word:</strong> {sdsData?.ghs_data?.signal_word || 'Not specified'}
-              </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body2">
-                  <strong>Hazard Type:</strong>
-                </Typography>
-                <ul style={{ paddingLeft: '20px', marginTop: '4px' }}>
-                  {sdsData?.ghs_data?.flammable && <li>Flammable</li>}
-                  {sdsData?.ghs_data?.toxic && <li>Toxic</li>}
-                  {sdsData?.ghs_data?.corrosive && <li>Corrosive</li>}
-                </ul>
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={ghsData.pictograms}
+                onChange={(_, value) => handleGhsChange('pictograms', value)}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
+                  ))
+                }
+                renderInput={(params) => (
+                  <TextField {...params} variant="outlined" label="Pictograms" placeholder="Add pictogram" sx={{ mb: 2 }} />
+                )}
+              />
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={ghsData.hazard_statements}
+                onChange={(_, value) => handleGhsChange('hazard_statements', value)}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
+                  ))
+                }
+                renderInput={(params) => (
+                  <TextField {...params} variant="outlined" label="Hazard Statements" placeholder="Add hazard statement" sx={{ mb: 2 }} />
+                )}
+              />
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={ghsData.precautionary_statements}
+                onChange={(_, value) => handleGhsChange('precautionary_statements', value)}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
+                  ))
+                }
+                renderInput={(params) => (
+                  <TextField {...params} variant="outlined" label="Precautionary Statements" placeholder="Add precautionary statement" sx={{ mb: 2 }} />
+                )}
+              />
+              <TextField
+                label="Signal Word"
+                variant="outlined"
+                value={ghsData.signal_word}
+                onChange={e => handleGhsChange('signal_word', e.target.value)}
+                sx={{ mb: 2, width: '100%' }}
+              />
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <FormControlLabel
+                  control={<Checkbox checked={ghsData.flammable} onChange={e => handleGhsChange('flammable', e.target.checked)} />}
+                  label="Flammable"
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={ghsData.toxic} onChange={e => handleGhsChange('toxic', e.target.checked)} />}
+                  label="Toxic"
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={ghsData.corrosive} onChange={e => handleGhsChange('corrosive', e.target.checked)} />}
+                  label="Corrosive"
+                />
               </Box>
+              <Button variant="contained" color="primary" onClick={saveGhsData} disabled={saveStatus === 'saving'}>
+                {saveStatus === 'saving' ? 'Saving...' : 'Save GHS Info'}
+              </Button>
+              <Snackbar open={saveStatus === 'success'} autoHideDuration={2000} onClose={() => setSaveStatus(null)}>
+                <MuiAlert elevation={6} variant="filled" severity="success">GHS info saved!</MuiAlert>
+              </Snackbar>
             </CardContent>
           </Card>
         </Box>
