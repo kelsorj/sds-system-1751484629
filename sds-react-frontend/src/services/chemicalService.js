@@ -9,8 +9,26 @@ export const chemicalService = {
   
   // Get total count of chemicals
   getChemicalsCount: async () => {
-    const response = await api.get('/chemicals');
-    return response.data.length;
+    try {
+      const response = await api.get('/chemicals/count');
+      return response.data.count;
+    } catch (error) {
+      console.error('Error fetching chemicals count:', error);
+      // Fallback to counting all chemicals if count endpoint fails
+      const response = await api.get('/chemicals');
+      return response.data.length;
+    }
+  },
+  
+  // Get dashboard statistics
+  getDashboardStats: async () => {
+    try {
+      const response = await api.get('/chemicals/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      throw error;
+    }
   },
   
   // Get inventory summary statistics

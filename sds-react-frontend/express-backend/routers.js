@@ -11,7 +11,7 @@ const sdsRouter = express.Router();
 const inventoryRouter = express.Router();
 const reportsRouter = express.Router();
 const authRouter = express.Router();
-bulkImportRouter = express.Router();
+const bulkImportRouter = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
@@ -78,6 +78,50 @@ chemicalsRouter.get('/', async (req, res) => {
     res.set('x-total-count', totalCount);
     res.json(rows);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/chemicals/count - Get total count of chemicals
+chemicalsRouter.get('/count', async (req, res) => {
+  try {
+    const countResult = await db.query('SELECT COUNT(*) FROM chemicals');
+    const totalCount = parseInt(countResult.rows[0].count);
+    res.json({ count: totalCount });
+  } catch (err) {
+    console.error('Error getting chemicals count:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/chemicals/stats - Get dashboard statistics
+chemicalsRouter.get('/stats', async (req, res) => {
+  try {
+    // Get total chemicals count
+    const countResult = await db.query('SELECT COUNT(*) FROM chemicals');
+    const totalChemicals = parseInt(countResult.rows[0].count);
+    
+    // Get chemicals with SDS count (using a placeholder query - adjust based on your schema)
+    const sdsCountResult = await db.query('SELECT COUNT(*) FROM chemicals WHERE notes LIKE \'%SDS%\'');
+    const chemicalsWithSds = parseInt(sdsCountResult.rows[0].count);
+    
+    // Calculate pending SDS downloads
+    const pendingSdsDownloads = totalChemicals - chemicalsWithSds;
+    
+    // Get recent activity (simple placeholder)
+    const recentActivity = [
+      { id: 1, type: 'import', message: 'Imported chemicals from database', timestamp: new Date().toISOString(), status: 'success' },
+      { id: 2, type: 'system', message: 'Express backend connected successfully', timestamp: new Date().toISOString(), status: 'info' }
+    ];
+    
+    res.json({
+      totalChemicals,
+      chemicalsWithSds,
+      pendingSdsDownloads,
+      recentActivity
+    });
+  } catch (err) {
+    console.error('Error getting chemicals stats:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -198,7 +242,50 @@ chemicalsRouter.get('/:cas_number/transactions', async (req, res) => {
 });
 
 // SDS
-sdsRouter.get('/', (req, res) => res.json({ message: 'SDS GET (to be implemented)' }));
+sdsRouter.get('/', async (req, res) => {
+  try {
+    // Check if the sds_files table exists
+    const tableExists = await db.query(
+      `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sds_files')`
+    );
+    
+    if (tableExists.rows[0].exists) {
+      // If the table exists, query it normally
+      const { rows } = await db.query(
+        'SELECT sf.*, c.name, c.cas_number FROM sds_files sf JOIN chemicals c ON sf.chemical_id = c.id'
+      );
+      res.json(rows);
+    } else {
+      // If the sds_files table doesn't exist, provide a simulated response
+      // based on chemicals that have SDS mentioned in their notes
+      const { rows } = await db.query(
+        "SELECT id, cas_number, name, notes, 'simulated' as file_path FROM chemicals WHERE notes LIKE '%SDS%' LIMIT 100"
+      );
+      
+      // Transform into a format similar to what sds_files would provide
+      const simulatedSdsFiles = rows.map(chemical => ({
+        id: `sim-${chemical.id}`,
+        chemical_id: chemical.id,
+        cas_number: chemical.cas_number,
+        name: chemical.name,
+        file_path: `/simulated/sds/${chemical.cas_number}.pdf`,
+        file_name: `${chemical.name}_SDS.pdf`,
+        file_size: 1024, // placeholder size in bytes
+        mime_type: 'application/pdf',
+        source: 'simulation',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        is_valid: true,
+        validation_errors: null
+      }));
+      
+      res.json(simulatedSdsFiles);
+    }
+  } catch (err) {
+    console.error('Error getting SDS files:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 sdsRouter.get('/sources', (req, res) => {
   // Placeholder: Replace with dynamic config if needed

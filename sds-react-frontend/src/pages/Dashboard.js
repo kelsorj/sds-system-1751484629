@@ -55,46 +55,51 @@ const Dashboard = () => {
       try {
         setLoading(true);
         
-        // Get total chemicals count
-        let totalChemicals = 0;
+        // Use our new unified dashboard stats endpoint
         try {
-          const chemicalsResponse = await chemicalService.getChemicals({ limit: 1, offset: 0 });
-          if (chemicalsResponse.headers && chemicalsResponse.headers['x-total-count']) {
-            totalChemicals = parseInt(chemicalsResponse.headers['x-total-count']);
-          } else {
+          const dashboardStats = await chemicalService.getDashboardStats();
+          setStats({
+            totalChemicals: dashboardStats.totalChemicals || 0,
+            chemicalsWithSds: dashboardStats.chemicalsWithSds || 0,
+            pendingSdsDownloads: dashboardStats.pendingSdsDownloads || 0,
+            recentActivity: dashboardStats.recentActivity || []
+          });
+        } catch (error) {
+          console.error('Error fetching dashboard stats:', error);
+          
+          // Fallback method if the stats endpoint fails
+          // Get total chemicals count
+          let totalChemicals = 0;
+          try {
             totalChemicals = await chemicalService.getChemicalsCount();
+          } catch (err) {
+            console.error('Error getting chemicals count:', err);
           }
-        } catch (error) {
-          console.error('Error getting chemicals count:', error);
-          totalChemicals = await chemicalService.getChemicalsCount();
+          
+          // Get SDS files count
+          let chemicalsWithSds = 0;
+          try {
+            const sdsResponse = await sdsService.getSdsFiles();
+            chemicalsWithSds = sdsResponse.data ? sdsResponse.data.length : 0;
+          } catch (err) {
+            console.error('Error getting SDS files:', err);
+          }
+          
+          // Calculate pending SDS downloads
+          const pendingSdsDownloads = totalChemicals - chemicalsWithSds;
+          
+          // Default recent activity
+          const recentActivity = [
+            { id: 1, type: 'system', message: 'Dashboard data fetched using fallback method', timestamp: new Date().toISOString(), status: 'info' }
+          ];
+          
+          setStats({
+            totalChemicals,
+            chemicalsWithSds,
+            pendingSdsDownloads,
+            recentActivity
+          });
         }
-        
-        // Get SDS files count
-        let chemicalsWithSds = 0;
-        try {
-          const sdsResponse = await sdsService.getSdsFiles();
-          chemicalsWithSds = sdsResponse.data ? sdsResponse.data.length : 0;
-        } catch (error) {
-          console.error('Error getting SDS files:', error);
-        }
-        
-        // Calculate pending SDS downloads
-        const pendingSdsDownloads = totalChemicals - chemicalsWithSds;
-        
-        // Get recent activity (this would ideally come from an API endpoint)
-        // For now, we'll keep the sample activity data
-        const recentActivity = [
-          { id: 1, type: 'import', message: 'Imported chemicals from database', timestamp: 'Recently', status: 'success' },
-          { id: 2, type: 'download', message: 'Downloaded SDS for Acetone (67-64-1)', timestamp: 'Recently', status: 'success' },
-          { id: 3, type: 'info', message: 'Database migrated to PostgreSQL', timestamp: 'Recently', status: 'info' }
-        ];
-        
-        setStats({
-          totalChemicals: parseInt(totalChemicals),
-          chemicalsWithSds,
-          pendingSdsDownloads,
-          recentActivity
-        });
         
         setLoading(false);
       } catch (error) {

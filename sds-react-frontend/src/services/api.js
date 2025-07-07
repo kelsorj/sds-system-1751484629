@@ -2,10 +2,11 @@ import axios from 'axios';
 
 // Create a base API instance
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '/api',
+  baseURL: process.env.REACT_APP_API_URL || 'http://ekmbalps1.corp.eikontx.com:6443/api',
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  allowAbsoluteUrls: true
 });
 
 // Add request interceptor for authentication
