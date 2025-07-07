@@ -30,7 +30,7 @@ import { sdsService } from '../services/sdsService';
 
 // Utility function to safely format dates
 const formatDate = (dateString) => {
-  if (!dateString) return 'Unknown';
+  if (!dateString) return '-';
   
   try {
     // Try to parse the date string
@@ -38,13 +38,13 @@ const formatDate = (dateString) => {
     
     // Check if date is valid before calling toISOString
     if (isNaN(date.getTime())) {
-      return 'Unknown';
+      return '-';
     }
     
     return date.toISOString().split('T')[0];
   } catch (error) {
     console.log('Error parsing date:', dateString, error);
-    return 'Unknown';
+    return '-';
   }
 };
 
@@ -118,8 +118,8 @@ const SDSDocuments = () => {
           sds_files: [{ 
             id: sds.id, 
             filename: sds.file_name || `${sds.cas_number}.pdf`, 
-            source: sds.source || 'Unknown', 
-            date_added: formatDate(sds.created_at) 
+            source: sds.source || '-', 
+            date_added: formatDate(sds.classified_at || sds.created_at) 
           }],
           file_path: sds.file_path,
           ghs_data: {
@@ -269,7 +269,7 @@ const SDSDocuments = () => {
                   <TableRow>
                     <TableCell>Chemical Name</TableCell>
                     <TableCell>CAS Number</TableCell>
-                    <TableCell>SDS Document</TableCell>
+                    <TableCell>SDS Document (Source, Date)</TableCell>
                     <TableCell>GHS Pictograms</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>

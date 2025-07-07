@@ -356,7 +356,8 @@ sdsRouter.get('/', async (req, res) => {
             gc.carcinogenicity,
             gc.germ_cell_mutagenicity,
             gc.respiratory_sensitization,
-            gc.aquatic_toxicity
+            gc.aquatic_toxicity,
+            gc.classified_at
           FROM sds_files sf 
           JOIN chemicals c ON sf.chemical_id = c.id
           LEFT JOIN ghs_classifications gc ON c.id = gc.chemical_id
