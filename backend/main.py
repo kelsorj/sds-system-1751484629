@@ -20,7 +20,7 @@ from backend.database.init_db import create_database
 from backend.core.sds_manager import SDSManager
 from backend.core.inventory_manager import InventoryManager
 from backend.api.database import get_db
-from backend.api import chemicals, sds, inventory, reports, auth, bulk_import
+from backend.api import chemicals, sds, inventory, reports, auth, bulk_import, molecule
 
 # Create FastAPI app
 app = FastAPI(
@@ -47,6 +47,7 @@ app.include_router(sds.router, prefix="/api/sds", tags=["SDS Management"])
 app.include_router(inventory.router, prefix="/api/inventory", tags=["Inventory"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(bulk_import.router, prefix="/api/bulk-import", tags=["Bulk Import"])
+app.include_router(molecule.router, prefix="/api", tags=["Molecule Rendering"])
 
 # Mount static files - fix the path to be relative to the current directory
 app.mount("/static", StaticFiles(directory="frontend/public"), name="static")

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+// Using direct rendering approach instead of separate RDKit loader
 import {
   Box,
   Button,
   Card,
   CardContent,
   Container,
+  FormControlLabel,
   IconButton,
   LinearProgress,
   Paper,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -27,10 +30,12 @@ import {
   Delete as DeleteIcon,
   Search as SearchIcon,
   Article as ArticleIcon,
-  GetApp as GetAppIcon
+  GetApp as GetAppIcon,
+  Science as ScienceIcon
 } from '@mui/icons-material';
 import { chemicalService } from '../services/chemicalService';
 import { sdsService } from '../services/sdsService';
+import MoleculeViewer from '../components/MoleculeViewer';
 
 const ChemicalList = () => {
   const [chemicals, setChemicals] = useState([]);
@@ -40,6 +45,7 @@ const ChemicalList = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [orderBy, setOrderBy] = useState('name');
   const [order, setOrder] = useState('asc');
+  const [showStructures, setShowStructures] = useState(false);
   
   useEffect(() => {
     fetchChemicals();
@@ -52,16 +58,19 @@ const ChemicalList = () => {
       const response = await chemicalService.getChemicals();
       console.log('Fetched chemicals from API:', response.data);
       
-      // Log SMILES data for debugging
+      // Enhanced logging for SMILES data debugging
+      console.log('=== CHEMICAL DATA DEBUGGING ===');
       response.data.forEach((chemical, index) => {
-        console.log(`Chemical ${index + 1}:`, {
+        console.log(`Chemical ${index + 1} (${chemical.cas_number}):`, {
           name: chemical.name,
           cas_number: chemical.cas_number,
           smiles: chemical.smiles,
           smiles_type: typeof chemical.smiles,
-          smiles_length: chemical.smiles ? chemical.smiles.length : 0
+          smiles_length: chemical.smiles ? chemical.smiles.length : 0,
+          has_sds: chemical.has_sds
         });
       });
+      console.log('=== END CHEMICAL DATA DEBUGGING ===');
       
       // The API now provides has_sds property directly
       console.log('First chemical has_sds:', response.data[0]?.has_sds);
@@ -155,126 +164,117 @@ const ChemicalList = () => {
     page * rowsPerPage + rowsPerPage
   );
 
-  // Helper component to render SMILES as a structure using RDKit loaded at runtime from public/rdkit/RDKit_minimal.js
+  // Highly visible component to display SMILES codes (impossible to miss)
   const SmilesStructure = ({ smiles, id }) => {
-    const [svg, setSvg] = useState(null);
-    const [error, setError] = useState(false);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-      let cancelled = false;
-      setSvg(null);
-      setError(false);
-      setLoading(true);
-
-      if (!smiles || typeof smiles !== 'string' || smiles.trim() === '') {
-        setError(true);
-        setLoading(false);
-        return;
-      }
-
-      function renderWithRDKitInstance(rdkit) {
-        console.log('renderWithRDKitInstance', rdkit);
-        if (!rdkit || !rdkit.ready) {
-          setError(true);
-          setLoading(false);
-          return;
-        }
-        rdkit.ready().then(() => {
-          if (cancelled) return;
-          try {
-            const mol = rdkit.get_mol(smiles.trim());
-            if (!mol) {
-              setError(true);
-              setLoading(false);
-              return;
-            }
-            const svgString = mol.get_svg();
-            setSvg(svgString);
-            setLoading(false);
-            mol.delete();
-          } catch (e) {
-            setError(true);
-            setLoading(false);
-          }
-        });
-      }
-
-      function tryRenderWithRDKit() {
-        console.log('tryRenderWithRDKit', window.RDKitModule);
-        if (window.RDKitModule) {
-          if (typeof window.RDKitModule === 'function') {
-            window.RDKitModule().then((instance) => {
-              console.log('RDKitModule() resolved', instance);
-              renderWithRDKitInstance(instance);
-            }).catch((e) => {
-              console.error('RDKitModule() error', e);
-              setError(true);
-              setLoading(false);
-            });
-          } else {
-            renderWithRDKitInstance(window.RDKitModule);
-          }
-        } else {
-          setError(true);
-          setLoading(false);
-        }
-      }
-
-      if (window.RDKitModule) {
-        tryRenderWithRDKit();
-      } else {
-        // Dynamically load the script if not already loaded
-        const scriptId = 'rdkit-minimal-lib';
-        let script = document.getElementById(scriptId);
-        if (!script) {
-          script = document.createElement('script');
-          script.id = scriptId;
-          script.src = '/rdkit/RDKit_minimal.js';
-          script.async = true;
-          script.onload = () => {
-            console.log('RDKit_minimal.js loaded');
-            tryRenderWithRDKit();
-          };
-          script.onerror = () => {
-            console.error('Failed to load RDKit_minimal.js');
-            setError(true);
-            setLoading(false);
-          };
-          document.body.appendChild(script);
-        } else {
-          script.onload = tryRenderWithRDKit;
-        }
-      }
-
-      return () => {
-        cancelled = true;
-      };
-    }, [smiles, id]);
-
-    if (loading) {
-      return (
-        <Box width={120} height={80} display="flex" alignItems="center" justifyContent="center" bgcolor="#f8f9fa" border="1px solid #dee2e6" borderRadius={1}>
-          <Typography variant="caption" color="textSecondary">Loading...</Typography>
-        </Box>
-      );
-    }
-    if (error || !svg) {
-      return (
-        <Box width={120} height={80} display="flex" alignItems="center" justifyContent="center" bgcolor="#f8f9fa" border="1px solid #dee2e6" borderRadius={1}>
-          <Typography variant="caption" color="textSecondary" textAlign="center">{smiles ? 'Invalid SMILES' : 'N/A'}</Typography>
-        </Box>
-      );
-    }
+    // Using extremely high contrast colors to ensure visibility
+    console.log(`Rendering SmilesStructure for ${id} with SMILES: ${smiles}`);
+    
     return (
-      <Box width={120} height={80} display="flex" alignItems="center" justifyContent="center" bgcolor="#fff" border="1px solid #dee2e6" borderRadius={1} p={0}>
-        <span dangerouslySetInnerHTML={{ __html: svg }} style={{ width: '100%', height: '100%' }} />
+      <Box 
+        width={150} 
+        height={100} 
+        display="flex" 
+        alignItems="center" 
+        justifyContent="center" 
+        bgcolor="#ff0000" // Bright red background
+        border="3px solid #000000" // Thick black border
+        borderRadius={2}
+        boxShadow="0 4px 8px rgba(0,0,0,0.5)"
+        overflow="hidden"
+        position="relative"
+        style={{ margin: '10px 0' }} // Add extra margin to make it stand out
+      >
+        <Box 
+          display="flex" 
+          flexDirection="column" 
+          alignItems="center" 
+          justifyContent="center"
+          p={1} 
+          width="100%"
+          height="100%"
+          bgcolor="#ffff00" // Bright yellow inner box
+          border="2px dashed #000000" // Dashed border for contrast
+        >
+          <Typography 
+            variant="subtitle2" 
+            sx={{ 
+              color: '#000000', 
+              fontWeight: 'bold',
+              fontSize: '14px',
+              mb: 1,
+              textTransform: 'uppercase',
+              textAlign: 'center'
+            }}
+          >
+            SMILES
+          </Typography>
+          
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontSize: '12px',
+              fontWeight: 'bold',
+              backgroundColor: '#ffffff',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              border: '1px solid #000000',
+              width: '90%',
+              textAlign: 'center',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {smiles || 'N/A'}
+          </Typography>
+          
+          <Typography 
+            variant="caption"
+            sx={{ 
+              position: 'absolute',
+              bottom: '5px',
+              right: '5px',
+              fontSize: '10px',
+              fontWeight: 'bold',
+              color: '#000000',
+              backgroundColor: '#ffffff',
+              padding: '2px 4px',
+              borderRadius: '2px'
+            }}
+          >
+            ID: {id}
+          </Typography>
+        </Box>
       </Box>
     );
   };
 
   return (
     <Box>
+      {/* Structure rendering information and toggle */}
+      <Paper sx={{ p: 2, mb: 3, bgcolor: '#f5f9ff' }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="body2">
+            {showStructures 
+              ? "Displaying molecular structures using server-side rendering." 
+              : "Displaying SMILES codes. Enable structure view for molecular visualization."}
+          </Typography>
+          <FormControlLabel
+            control={
+              <Switch 
+                checked={showStructures} 
+                onChange={(e) => setShowStructures(e.target.checked)}
+                color="primary"
+              />
+            }
+            label={<Box display="flex" alignItems="center">
+              <ScienceIcon fontSize="small" sx={{ mr: 0.5 }} />
+              <Typography variant="body2">Show Structures</Typography>
+            </Box>}
+          />
+        </Box>
+      </Paper>
+      
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Chemical Inventory</Typography>
         <Button
@@ -379,7 +379,23 @@ const ChemicalList = () => {
                         <TableCell>{chemical.molecular_formula}</TableCell>
                         <TableCell>{`${chemical.quantity} ${chemical.unit}`}</TableCell>
                         <TableCell>
-                          {chemical.smiles ? <SmilesStructure smiles={chemical.smiles} id={chemical.cas_number} /> : <Typography color="textSecondary" variant="body2">N/A</Typography>}
+                          {chemical.smiles ? (
+                            showStructures ? (
+                              <MoleculeViewer 
+                                smiles={chemical.smiles} 
+                                width={100} 
+                                height={80} 
+                                compact 
+                              />
+                            ) : (
+                              <SmilesStructure 
+                                smiles={chemical.smiles} 
+                                id={chemical.cas_number} 
+                              />
+                            )
+                          ) : (
+                            <Typography color="textSecondary" variant="body2">N/A</Typography>
+                          )}
                         </TableCell>
                         <TableCell>{chemical.location || <Typography color="textSecondary" variant="body2">N/A</Typography>}</TableCell>
                         <TableCell>
