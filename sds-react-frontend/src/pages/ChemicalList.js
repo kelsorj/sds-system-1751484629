@@ -251,14 +251,11 @@ const ChemicalList = () => {
 
   return (
     <Box>
-      {/* Structure rendering information and toggle */}
-      <Paper sx={{ p: 2, mb: 3, bgcolor: '#f5f9ff' }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Typography variant="body2">
-            {showStructures 
-              ? "Displaying molecular structures using server-side rendering." 
-              : "Displaying SMILES codes. Enable structure view for molecular visualization."}
-          </Typography>
+      {/* No informational message anymore */}
+      
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4">Chemical Inventory</Typography>
+        <Box display="flex" alignItems="center" gap={2}>
           <FormControlLabel
             control={
               <Switch 
@@ -267,25 +264,24 @@ const ChemicalList = () => {
                 color="primary"
               />
             }
-            label={<Box display="flex" alignItems="center">
-              <ScienceIcon fontSize="small" sx={{ mr: 0.5 }} />
-              <Typography variant="body2">Show Structures</Typography>
-            </Box>}
+            label={
+              <Box display="flex" alignItems="center">
+                <ScienceIcon fontSize="small" sx={{ mr: 0.5 }} />
+                <Typography variant="body2">Show Structures</Typography>
+              </Box>
+            }
+            sx={{ mr: 1 }}
           />
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            component={Link}
+            to="/chemicals/add"
+          >
+            Add Chemical
+          </Button>
         </Box>
-      </Paper>
-      
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4">Chemical Inventory</Typography>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          component={Link}
-          to="/chemicals/add"
-        >
-          Add Chemical
-        </Button>
       </Box>
 
       {/* Search and filter */}
@@ -388,10 +384,20 @@ const ChemicalList = () => {
                                 compact 
                               />
                             ) : (
-                              <SmilesStructure 
-                                smiles={chemical.smiles} 
-                                id={chemical.cas_number} 
-                              />
+                              <Tooltip title={chemical.smiles}>
+                                <Typography 
+                                  variant="body2" 
+                                  sx={{ 
+                                    maxWidth: 150, 
+                                    overflow: 'hidden', 
+                                    textOverflow: 'ellipsis', 
+                                    whiteSpace: 'nowrap',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {chemical.smiles}
+                                </Typography>
+                              </Tooltip>
                             )
                           ) : (
                             <Typography color="textSecondary" variant="body2">N/A</Typography>
