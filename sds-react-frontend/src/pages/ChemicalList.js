@@ -52,6 +52,17 @@ const ChemicalList = () => {
       const response = await chemicalService.getChemicals();
       console.log('Fetched chemicals from API:', response.data);
       
+      // Log SMILES data for debugging
+      response.data.forEach((chemical, index) => {
+        console.log(`Chemical ${index + 1}:`, {
+          name: chemical.name,
+          cas_number: chemical.cas_number,
+          smiles: chemical.smiles,
+          smiles_type: typeof chemical.smiles,
+          smiles_length: chemical.smiles ? chemical.smiles.length : 0
+        });
+      });
+      
       // The API now provides has_sds property directly
       console.log('First chemical has_sds:', response.data[0]?.has_sds);
       setChemicals(response.data);
@@ -100,6 +111,8 @@ const ChemicalList = () => {
     }
   };
 
+
+
   // Filter and sort chemicals
   const filteredChemicals = chemicals
     .filter((chemical) => {
@@ -141,6 +154,124 @@ const ChemicalList = () => {
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
+
+  // Helper component to render SMILES as a structure using RDKit loaded at runtime from public/rdkit/RDKit_minimal.js
+  const SmilesStructure = ({ smiles, id }) => {
+    const [svg, setSvg] = useState(null);
+    const [error, setError] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      let cancelled = false;
+      setSvg(null);
+      setError(false);
+      setLoading(true);
+
+      if (!smiles || typeof smiles !== 'string' || smiles.trim() === '') {
+        setError(true);
+        setLoading(false);
+        return;
+      }
+
+      function renderWithRDKitInstance(rdkit) {
+        console.log('renderWithRDKitInstance', rdkit);
+        if (!rdkit || !rdkit.ready) {
+          setError(true);
+          setLoading(false);
+          return;
+        }
+        rdkit.ready().then(() => {
+          if (cancelled) return;
+          try {
+            const mol = rdkit.get_mol(smiles.trim());
+            if (!mol) {
+              setError(true);
+              setLoading(false);
+              return;
+            }
+            const svgString = mol.get_svg();
+            setSvg(svgString);
+            setLoading(false);
+            mol.delete();
+          } catch (e) {
+            setError(true);
+            setLoading(false);
+          }
+        });
+      }
+
+      function tryRenderWithRDKit() {
+        console.log('tryRenderWithRDKit', window.RDKitModule);
+        if (window.RDKitModule) {
+          if (typeof window.RDKitModule === 'function') {
+            window.RDKitModule().then((instance) => {
+              console.log('RDKitModule() resolved', instance);
+              renderWithRDKitInstance(instance);
+            }).catch((e) => {
+              console.error('RDKitModule() error', e);
+              setError(true);
+              setLoading(false);
+            });
+          } else {
+            renderWithRDKitInstance(window.RDKitModule);
+          }
+        } else {
+          setError(true);
+          setLoading(false);
+        }
+      }
+
+      if (window.RDKitModule) {
+        tryRenderWithRDKit();
+      } else {
+        // Dynamically load the script if not already loaded
+        const scriptId = 'rdkit-minimal-lib';
+        let script = document.getElementById(scriptId);
+        if (!script) {
+          script = document.createElement('script');
+          script.id = scriptId;
+          script.src = '/rdkit/RDKit_minimal.js';
+          script.async = true;
+          script.onload = () => {
+            console.log('RDKit_minimal.js loaded');
+            tryRenderWithRDKit();
+          };
+          script.onerror = () => {
+            console.error('Failed to load RDKit_minimal.js');
+            setError(true);
+            setLoading(false);
+          };
+          document.body.appendChild(script);
+        } else {
+          script.onload = tryRenderWithRDKit;
+        }
+      }
+
+      return () => {
+        cancelled = true;
+      };
+    }, [smiles, id]);
+
+    if (loading) {
+      return (
+        <Box width={120} height={80} display="flex" alignItems="center" justifyContent="center" bgcolor="#f8f9fa" border="1px solid #dee2e6" borderRadius={1}>
+          <Typography variant="caption" color="textSecondary">Loading...</Typography>
+        </Box>
+      );
+    }
+    if (error || !svg) {
+      return (
+        <Box width={120} height={80} display="flex" alignItems="center" justifyContent="center" bgcolor="#f8f9fa" border="1px solid #dee2e6" borderRadius={1}>
+          <Typography variant="caption" color="textSecondary" textAlign="center">{smiles ? 'Invalid SMILES' : 'N/A'}</Typography>
+        </Box>
+      );
+    }
+    return (
+      <Box width={120} height={80} display="flex" alignItems="center" justifyContent="center" bgcolor="#fff" border="1px solid #dee2e6" borderRadius={1} p={0}>
+        <span dangerouslySetInnerHTML={{ __html: svg }} style={{ width: '100%', height: '100%' }} />
+      </Box>
+    );
+  };
 
   return (
     <Box>
@@ -220,6 +351,8 @@ const ChemicalList = () => {
                         Quantity
                       </TableSortLabel>
                     </TableCell>
+                    <TableCell>Structure</TableCell>
+                    <TableCell>Location</TableCell>
                     <TableCell>SDS</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
@@ -227,12 +360,12 @@ const ChemicalList = () => {
                 <TableBody>
                   {paginatedChemicals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
+                      <TableCell colSpan={8} align="center">
                         No chemicals found
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedChemicals.map((chemical) => (
+                    paginatedChemicals.map((chemical, idx) => (
                       <TableRow key={chemical.cas_number}>
                         <TableCell>
                           <Link 
@@ -245,6 +378,10 @@ const ChemicalList = () => {
                         <TableCell>{chemical.cas_number}</TableCell>
                         <TableCell>{chemical.molecular_formula}</TableCell>
                         <TableCell>{`${chemical.quantity} ${chemical.unit}`}</TableCell>
+                        <TableCell>
+                          {chemical.smiles ? <SmilesStructure smiles={chemical.smiles} id={chemical.cas_number} /> : <Typography color="textSecondary" variant="body2">N/A</Typography>}
+                        </TableCell>
+                        <TableCell>{chemical.location || <Typography color="textSecondary" variant="body2">N/A</Typography>}</TableCell>
                         <TableCell>
                           {chemical.has_sds ? (
                             <Tooltip title="Download SDS">
