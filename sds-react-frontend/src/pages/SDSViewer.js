@@ -187,217 +187,204 @@ const SDSViewer = () => {
         </Alert>
       )}
       
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Typography variant="h6" gutterBottom>
-              {chemicalData?.name || casNumber} ({casNumber})
-            </Typography>
-            
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              <strong>Molecular Formula:</strong> {chemicalData?.molecular_formula || 'Not available'}
-            </Typography>
-            
-            <Typography variant="body2" sx={{ mb: 2 }}>
-              <strong>Molecular Weight:</strong> {chemicalData?.molecular_weight || 'Not available'}
-            </Typography>
-            
-            {sdsData?.sds_files?.length > 0 && (
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle1" gutterBottom>SDS Files:</Typography>
-                {sdsData.sds_files.map((file, index) => (
-                  <Box key={index} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <Typography variant="body2">
-                      {file.filename} ({file.source}, {file.date_added})
-                    </Typography>
-                  </Box>
-                ))}
+      <Paper sx={{ p: 3, mb: 3, width: '100%' }}>
+        {/* PDF Viewer Section */}
+        <Box sx={{ width: '100%' }}>
+          <Typography variant="h6" gutterBottom>
+            {chemicalData?.name || casNumber} ({casNumber})
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            <strong>Molecular Formula:</strong> {chemicalData?.molecular_formula || 'Not available'}
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            <strong>Molecular Weight:</strong> {chemicalData?.molecular_weight || 'Not available'}
+          </Typography>
+          {sdsData?.sds_files?.length > 0 && (
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>SDS Files:</Typography>
+              {sdsData.sds_files.map((file, index) => (
+                <Box key={index} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="body2">
+                    {file.filename} ({file.source}, {file.date_added})
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
+          <Paper elevation={1} sx={{
+            mb: 2,
+            p: 2,
+            border: '1px solid #e0e0e0',
+            borderRadius: 1,
+            overflow: 'hidden',
+            width: '100%'
+          }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'center' }}>
+              <Typography variant="subtitle1"><strong>SDS Viewer</strong></Typography>
+              <Box>
+                <IconButton
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                >
+                  {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
+                </IconButton>
+              </Box>
+            </Box>
+            {pdfError ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 450, bgcolor: '#f5f5f5' }}>
+                <ErrorIcon color="error" sx={{ mr: 1 }} />
+                <Typography variant="body2" color="error">{pdfError}</Typography>
+              </Box>
+            ) : pdfUrl ? (
+              <Box sx={{
+                height: isFullscreen ? 'calc(100vh - 300px)' : 450,
+                border: '1px solid #eee',
+                overflow: 'hidden',
+                position: 'relative',
+                padding: 0,
+                transition: 'height 0.3s ease',
+                width: '100%'
+              }}>
+                {/* Main PDF Viewer */}
+                <iframe
+                  title={`SDS Document for ${chemicalData?.name || casNumber}`}
+                  src={`http://ekmbalps1.corp.eikontx.com:6443/api/sds/download/${encodeURIComponent(sdsData.file_path)}?disposition=inline`}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 'none' }}
+                  allow="fullscreen"
+                ></iframe>
+                {/* Controls overlay */}
+                <Box sx={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  bgcolor: 'rgba(255,255,255,0.9)',
+                  p: 1,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderTop: '1px solid #eee'
+                }}>
+                  <Typography variant="body2" sx={{ ml: 1, fontWeight: 500 }}>
+                    {chemicalData?.name || casNumber}
+                  </Typography>
+                  <Stack direction="row" spacing={1}>
+                    <IconButton
+                      color="primary"
+                      size="small"
+                      onClick={() => setIsFullscreen(!isFullscreen)}
+                      title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                    >
+                      {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
+                    </IconButton>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Download />}
+                      onClick={downloadSds}
+                      disabled={downloadStatus === 'downloading'}
+                    >
+                      {downloadStatus === 'downloading' ? 'Downloading...' : 'Download'}
+                    </Button>
+                  </Stack>
+                </Box>
+              </Box>
+            ) : (
+              <Box sx={{
+                height: 450,
+                bgcolor: '#f5f5f5',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderRadius: 1,
+                width: '100%'
+              }}>
+                <Typography variant="body2" color="textSecondary">
+                  No PDF document available
+                </Typography>
               </Box>
             )}
-            
-            <Paper elevation={1} sx={{ 
-              mb: 2,
-              p: 2,
-              border: '1px solid #e0e0e0', 
-              borderRadius: 1,
-              overflow: 'hidden'
-            }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'center' }}>
-                <Typography variant="subtitle1"><strong>SDS Viewer</strong></Typography>
-                <Box>
-                  <IconButton 
-                    onClick={() => setIsFullscreen(!isFullscreen)} 
-                    title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                  >
-                    {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
-                  </IconButton>
-                </Box>
-              </Box>
-              
-              {pdfError ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 450, bgcolor: '#f5f5f5' }}>
-                  <ErrorIcon color="error" sx={{ mr: 1 }} />
-                  <Typography variant="body2" color="error">{pdfError}</Typography>
-                </Box>
-              ) : pdfUrl ? (
-                <Box sx={{ 
-                  height: isFullscreen ? 'calc(100vh - 300px)' : 450, 
-                  border: '1px solid #eee',
-                  overflow: 'hidden',
-                  position: 'relative',
-                  padding: 0,
-                  transition: 'height 0.3s ease'
-                }}>
-                  {/* Main PDF Viewer */}
-                  <iframe
-                    title={`SDS Document for ${chemicalData?.name || casNumber}`}
-                    src={`http://ekmbalps1.corp.eikontx.com:6443/api/sds/download/${encodeURIComponent(sdsData.file_path)}?disposition=inline`}
-                    width="100%"
-                    height="100%"
-                    style={{ border: 'none' }}
-                    allow="fullscreen"
-                  ></iframe>
-                  
-                  {/* Controls overlay */}
-                  <Box sx={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    bgcolor: 'rgba(255,255,255,0.9)',
-                    p: 1,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    borderTop: '1px solid #eee'
-                  }}>
-                    <Typography variant="body2" sx={{ ml: 1, fontWeight: 500 }}>
-                      {chemicalData?.name || casNumber}
-                    </Typography>
-                    
-                    <Stack direction="row" spacing={1}>
-                      <IconButton
-                        color="primary"
-                        size="small"
-                        onClick={() => setIsFullscreen(!isFullscreen)}
-                        title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            {sdsData?.file_path && (
+              <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                File: {sdsData.file_path}
+              </Typography>
+            )}
+          </Paper>
+          <Button
+            variant="contained"
+            startIcon={downloadStatus === 'loading' ? <CircularProgress size={20} color="inherit" /> : <GetAppIcon />}
+            sx={{ mt: 1 }}
+            onClick={downloadSds}
+            disabled={downloadStatus === 'loading' || !sdsData?.file_path}
+          >
+            Download PDF
+          </Button>
+        </Box>
+        {/* GHS Info Section */}
+        <Box sx={{ width: '100%', mt: 3 }}>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                GHS Information
+              </Typography>
+              {pictograms.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>Pictograms:</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {pictograms.map((pic, idx) => (
+                      <Box
+                        key={idx}
+                        sx={{
+                          p: 1,
+                          border: '1px solid #ddd',
+                          borderRadius: 1,
+                          display: 'inline-block'
+                        }}
                       >
-                        {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
-                      </IconButton>
-                      
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<Download />}
-                        onClick={downloadSds}
-                        disabled={downloadStatus === 'downloading'}
-                      >
-                        {downloadStatus === 'downloading' ? 'Downloading...' : 'Download'}
-                      </Button>
-                    </Stack>
+                        {pic}
+                      </Box>
+                    ))}
                   </Box>
                 </Box>
-              ) : (
-                <Box sx={{ 
-                  height: 450, 
-                  bgcolor: '#f5f5f5', 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center',
-                  borderRadius: 1
-                }}>
-                  <Typography variant="body2" color="textSecondary">
-                    No PDF document available
-                  </Typography>
-                </Box>
               )}
-              
-              {sdsData?.file_path && (
-                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
-                  File: {sdsData.file_path}
-                </Typography>
-              )}
-            </Paper>
-            
-            <Button
-              variant="contained" 
-              startIcon={downloadStatus === 'loading' ? <CircularProgress size={20} color="inherit" /> : <GetAppIcon />}
-              sx={{ mt: 1 }}
-              onClick={downloadSds}
-              disabled={downloadStatus === 'loading' || !sdsData?.file_path}
-            >
-              Download PDF
-            </Button>
-          </Grid>
-          
-          <Grid item xs={12} md={4}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  GHS Information
-                </Typography>
-                
-                {pictograms.length > 0 && (
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="subtitle2" gutterBottom>Pictograms:</Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {pictograms.map((pic, idx) => (
-                        <Box 
-                          key={idx} 
-                          sx={{ 
-                            p: 1, 
-                            border: '1px solid #ddd',
-                            borderRadius: 1,
-                            display: 'inline-block'
-                          }}
-                        >
-                          {pic}
-                        </Box>
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-                
-                {hazardStatements.length > 0 && (
-                  <Typography variant="body2" sx={{ mb: 2 }}>
-                    <strong>Hazard Statements:</strong>
-                    <ul style={{ paddingLeft: '20px', marginTop: '4px' }}>
-                      {hazardStatements.map((statement, idx) => (
-                        <li key={idx}>{statement}</li>
-                      ))}
-                    </ul>
-                  </Typography>
-                )}
-                
-                {precautionaryStatements.length > 0 && (
-                  <Typography variant="body2">
-                    <strong>Precautionary Statements:</strong>
-                    <ul style={{ paddingLeft: '20px', marginTop: '4px' }}>
-                      {precautionaryStatements.map((statement, idx) => (
-                        <li key={idx}>{statement}</li>
-                      ))}
-                    </ul>
-                  </Typography>
-                )}
-                
-                <Typography variant="body2" sx={{ mt: 2 }}>
-                  <strong>Signal Word:</strong> {sdsData?.ghs_data?.signal_word || 'Not specified'}
-                </Typography>
-                
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="body2">
-                    <strong>Hazard Type:</strong>
-                  </Typography>
+              {hazardStatements.length > 0 && (
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  <strong>Hazard Statements:</strong>
                   <ul style={{ paddingLeft: '20px', marginTop: '4px' }}>
-                    {sdsData?.ghs_data?.flammable && <li>Flammable</li>}
-                    {sdsData?.ghs_data?.toxic && <li>Toxic</li>}
-                    {sdsData?.ghs_data?.corrosive && <li>Corrosive</li>}
+                    {hazardStatements.map((statement, idx) => (
+                      <li key={idx}>{statement}</li>
+                    ))}
                   </ul>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+                </Typography>
+              )}
+              {precautionaryStatements.length > 0 && (
+                <Typography variant="body2">
+                  <strong>Precautionary Statements:</strong>
+                  <ul style={{ paddingLeft: '20px', marginTop: '4px' }}>
+                    {precautionaryStatements.map((statement, idx) => (
+                      <li key={idx}>{statement}</li>
+                    ))}
+                  </ul>
+                </Typography>
+              )}
+              <Typography variant="body2" sx={{ mt: 2 }}>
+                <strong>Signal Word:</strong> {sdsData?.ghs_data?.signal_word || 'Not specified'}
+              </Typography>
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  <strong>Hazard Type:</strong>
+                </Typography>
+                <ul style={{ paddingLeft: '20px', marginTop: '4px' }}>
+                  {sdsData?.ghs_data?.flammable && <li>Flammable</li>}
+                  {sdsData?.ghs_data?.toxic && <li>Toxic</li>}
+                  {sdsData?.ghs_data?.corrosive && <li>Corrosive</li>}
+                </ul>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
       </Paper>
       
       <Typography variant="body2" color="textSecondary">
