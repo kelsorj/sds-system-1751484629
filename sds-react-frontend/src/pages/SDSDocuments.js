@@ -28,6 +28,26 @@ import {
 } from '@mui/icons-material';
 import { sdsService } from '../services/sdsService';
 
+// Utility function to safely format dates
+const formatDate = (dateString) => {
+  if (!dateString) return 'Unknown';
+  
+  try {
+    // Try to parse the date string
+    const date = new Date(dateString);
+    
+    // Check if date is valid before calling toISOString
+    if (isNaN(date.getTime())) {
+      return 'Unknown';
+    }
+    
+    return date.toISOString().split('T')[0];
+  } catch (error) {
+    console.log('Error parsing date:', dateString, error);
+    return 'Unknown';
+  }
+};
+
 const SDSDocuments = () => {
   const [sdsDocuments, setSdsDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +119,7 @@ const SDSDocuments = () => {
             id: sds.id, 
             filename: sds.file_name || `${sds.cas_number}.pdf`, 
             source: sds.source || 'Unknown', 
-            date_added: new Date(sds.created_at).toISOString().split('T')[0] 
+            date_added: formatDate(sds.created_at) 
           }],
           file_path: sds.file_path,
           ghs_data: {
