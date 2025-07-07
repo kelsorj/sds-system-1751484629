@@ -237,7 +237,7 @@ const SDSViewer = () => {
               </Box>
             ) : pdfUrl ? (
               <Box sx={{
-                height: isFullscreen ? 'calc(100vh - 300px)' : 450,
+                height: isFullscreen ? 'calc(100vh - 300px)' : 788,
                 border: '1px solid #eee',
                 overflow: 'hidden',
                 position: 'relative',
@@ -248,7 +248,7 @@ const SDSViewer = () => {
                 {/* Main PDF Viewer */}
                 <iframe
                   title={`SDS Document for ${chemicalData?.name || casNumber}`}
-                  src={`http://ekmbalps1.corp.eikontx.com:6443/api/sds/download/${encodeURIComponent(sdsData.file_path)}?disposition=inline`}
+                  src={`http://ekmbalps1.corp.eikontx.com:6443/api/sds/download/${encodeURIComponent(sdsData.file_path)}?disposition=inline#zoom=100`}
                   width="100%"
                   height="100%"
                   style={{ border: 'none' }}
