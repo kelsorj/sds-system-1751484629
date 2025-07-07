@@ -325,10 +325,51 @@ sdsRouter.get('/', async (req, res) => {
     );
     
     if (tableExists.rows[0].exists) {
-      // If the table exists, query it normally
-      const { rows } = await db.query(
-        'SELECT sf.*, c.name, c.cas_number FROM sds_files sf JOIN chemicals c ON sf.chemical_id = c.id'
+      // Check if ghs_classifications table exists
+      const ghsTableExists = await db.query(
+        `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'ghs_classifications')`
       );
+      
+      let rows;
+      
+      if (ghsTableExists.rows[0].exists) {
+        // If both tables exist, join them to get complete data
+        const result = await db.query(`
+          SELECT 
+            sf.*, 
+            c.name, 
+            c.cas_number,
+            gc.signal_word,
+            gc.hazard_statements,
+            gc.precautionary_statements,
+            gc.pictograms,
+            gc.hazard_classes,
+            gc.flammable,
+            gc.explosive,
+            gc.oxidizing,
+            gc.toxic,
+            gc.corrosive,
+            gc.acute_toxicity,
+            gc.serious_eye_damage,
+            gc.skin_corrosion,
+            gc.reproductive_toxicity,
+            gc.carcinogenicity,
+            gc.germ_cell_mutagenicity,
+            gc.respiratory_sensitization,
+            gc.aquatic_toxicity
+          FROM sds_files sf 
+          JOIN chemicals c ON sf.chemical_id = c.id
+          LEFT JOIN ghs_classifications gc ON c.id = gc.chemical_id
+        `);
+        rows = result.rows;
+      } else {
+        // If only sds_files exists but no ghs_classifications
+        const result = await db.query(
+          'SELECT sf.*, c.name, c.cas_number FROM sds_files sf JOIN chemicals c ON sf.chemical_id = c.id'
+        );
+        rows = result.rows;
+      }
+      
       res.json(rows);
     } else {
       // If the sds_files table doesn't exist, provide a simulated response
@@ -351,7 +392,12 @@ sdsRouter.get('/', async (req, res) => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         is_valid: true,
-        validation_errors: null
+        validation_errors: null,
+        // Add simulated GHS data
+        signal_word: Math.random() > 0.5 ? 'Warning' : 'Danger',
+        hazard_statements: ['H315', 'H319', 'H335'],
+        precautionary_statements: ['P261', 'P280', 'P305+P351+P338'],
+        pictograms: ['GHS07']
       }));
       
       res.json(simulatedSdsFiles);

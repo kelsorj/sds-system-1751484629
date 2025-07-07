@@ -42,88 +42,80 @@ const SDSDocuments = () => {
   const fetchSdsDocuments = async () => {
     try {
       setLoading(true);
-      // In a real app, you would fetch this data from your backend
-      // Here we're simulating it for demonstration
-      // const response = await sdsService.getAllSdsInfo();
-      // setSdsDocuments(response.data);
+      // Fetch real data from the backend API
+      const response = await sdsService.getSdsFiles();
       
-      // Simulate API delay and data
-      setTimeout(() => {
-        const mockSdsDocuments = [
-          { 
-            cas_number: '67-64-1', 
-            chemical_name: 'Acetone', 
-            sds_files: [{ id: 1, filename: 'acetone_sds_2024.pdf', source: 'Fisher', date_added: '2024-04-15' }],
-            ghs_data: {
-              pictograms: ['GHS02', 'GHS07'],
-              hazard_statements: ['H225', 'H319', 'H336'],
-              precautionary_statements: ['P210', 'P233', 'P261', 'P280']
+      // Format the response data to match the expected structure
+      const formattedData = response.data.map(sds => {
+        // Process the GHS data if available
+        let pictograms = [];
+        let hazardStatements = [];
+        let precautionaryStatements = [];
+        
+        // Handle pictograms - might be a string array, JSON string, or null
+        if (sds.pictograms) {
+          if (typeof sds.pictograms === 'string') {
+            try {
+              pictograms = JSON.parse(sds.pictograms);
+            } catch (e) {
+              // If not valid JSON, split by commas (common format)
+              pictograms = sds.pictograms.replace(/[\[\]\'"]/g, '').split(',').map(p => p.trim()).filter(p => p);
             }
-          },
-          { 
-            cas_number: '64-17-5', 
-            chemical_name: 'Ethanol', 
-            sds_files: [{ id: 2, filename: 'ethanol_sds_2023.pdf', source: 'Sigma', date_added: '2023-11-22' }],
-            ghs_data: {
-              pictograms: ['GHS02'],
-              hazard_statements: ['H225'],
-              precautionary_statements: ['P210', 'P233']
+          } else if (Array.isArray(sds.pictograms)) {
+            pictograms = sds.pictograms;
+          }
+        }
+        
+        // Handle hazard statements
+        if (sds.hazard_statements) {
+          if (typeof sds.hazard_statements === 'string') {
+            try {
+              hazardStatements = JSON.parse(sds.hazard_statements);
+            } catch (e) {
+              hazardStatements = sds.hazard_statements.replace(/[\[\]\'"]/g, '').split(',').map(h => h.trim()).filter(h => h);
             }
-          },
-          { 
-            cas_number: '75-09-2', 
-            chemical_name: 'Dichloromethane', 
-            sds_files: [{ id: 3, filename: 'dcm_sds_2024.pdf', source: 'VWR', date_added: '2024-01-30' }],
-            ghs_data: {
-              pictograms: ['GHS08'],
-              hazard_statements: ['H351'],
-              precautionary_statements: ['P201', 'P202', 'P280']
+          } else if (Array.isArray(sds.hazard_statements)) {
+            hazardStatements = sds.hazard_statements;
+          }
+        }
+        
+        // Handle precautionary statements
+        if (sds.precautionary_statements) {
+          if (typeof sds.precautionary_statements === 'string') {
+            try {
+              precautionaryStatements = JSON.parse(sds.precautionary_statements);
+            } catch (e) {
+              precautionaryStatements = sds.precautionary_statements.replace(/[\[\]\'"]/g, '').split(',').map(p => p.trim()).filter(p => p);
             }
-          },
-          { 
-            cas_number: '67-68-5', 
-            chemical_name: 'Dimethyl sulfoxide', 
-            sds_files: [{ id: 4, filename: 'dmso_sds_2023.pdf', source: 'Fisher', date_added: '2023-10-12' }],
-            ghs_data: {
-              pictograms: [],
-              hazard_statements: [],
-              precautionary_statements: ['P261']
-            }
-          },
-          { 
-            cas_number: '67-56-1', 
-            chemical_name: 'Methanol', 
-            sds_files: [{ id: 5, filename: 'methanol_sds_2024.pdf', source: 'Sigma', date_added: '2024-02-18' }],
-            ghs_data: {
-              pictograms: ['GHS02', 'GHS06', 'GHS08'],
-              hazard_statements: ['H225', 'H301', 'H311', 'H331', 'H370'],
-              precautionary_statements: ['P210', 'P233', 'P260', 'P280']
-            }
-          },
-          { 
-            cas_number: '108-88-3', 
-            chemical_name: 'Toluene', 
-            sds_files: [{ id: 6, filename: 'toluene_sds_2023.pdf', source: 'ChemSupply', date_added: '2023-09-05' }],
-            ghs_data: {
-              pictograms: ['GHS02', 'GHS07', 'GHS08'],
-              hazard_statements: ['H225', 'H304', 'H315', 'H336', 'H361', 'H373'],
-              precautionary_statements: ['P210', 'P240', 'P301+P310', 'P403+P233']
-            }
-          },
-          { 
-            cas_number: '108-95-2', 
-            chemical_name: 'Phenol', 
-            sds_files: [{ id: 7, filename: 'phenol_sds_2023.pdf', source: 'Sigma', date_added: '2023-12-01' }],
-            ghs_data: {
-              pictograms: ['GHS05', 'GHS06', 'GHS08'],
-              hazard_statements: ['H301', 'H311', 'H331', 'H314', 'H341', 'H373'],
-              precautionary_statements: ['P260', 'P280', 'P301+P310', 'P303+P361+P353']
-            }
-          },
-        ];
-        setSdsDocuments(mockSdsDocuments);
-        setLoading(false);
-      }, 1000);
+          } else if (Array.isArray(sds.precautionary_statements)) {
+            precautionaryStatements = sds.precautionary_statements;
+          }
+        }
+        
+        return {
+          cas_number: sds.cas_number || 'Unknown',
+          chemical_name: sds.name || 'Unknown Chemical',
+          sds_files: [{ 
+            id: sds.id, 
+            filename: sds.file_name || `${sds.cas_number}.pdf`, 
+            source: sds.source || 'Unknown', 
+            date_added: new Date(sds.created_at).toISOString().split('T')[0] 
+          }],
+          file_path: sds.file_path,
+          ghs_data: {
+            pictograms: pictograms,
+            hazard_statements: hazardStatements,
+            precautionary_statements: precautionaryStatements,
+            signal_word: sds.signal_word || '',
+            flammable: sds.flammable || false,
+            toxic: sds.toxic || false,
+            corrosive: sds.corrosive || false
+          }
+        };
+      });
+      
+      setSdsDocuments(formattedData);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching SDS documents:', error);
       setLoading(false);
@@ -143,22 +135,30 @@ const SDSDocuments = () => {
     setSearchQuery(event.target.value);
   };
 
-  const downloadSds = async (casNumber, fileName) => {
+  const downloadSds = async (sdsFile) => {
     try {
-      // In a real app, you would call the API to download the SDS
-      // const blob = await sdsService.downloadSds(casNumber);
-      // const url = window.URL.createObjectURL(blob);
-      // const a = document.createElement('a');
-      // a.href = url;
-      // a.download = fileName;
-      // document.body.appendChild(a);
-      // a.click();
-      // a.remove();
+      // Use the file_path for the download URL
+      let filePath;
       
-      alert(`Downloading SDS file: ${fileName}`);
+      if (sdsFile.file_path) {
+        filePath = sdsFile.file_path;
+      } else if (sdsFile.filename) {
+        filePath = sdsFile.filename;
+      } else {
+        // Fallback to using the CAS number to construct a filename
+        const casNumber = sdsFile.cas_number || 'unknown';
+        filePath = `${casNumber}-SDS.pdf`;
+      }
+      
+      // Encode the file path for the URL
+      const encodedFilePath = encodeURIComponent(filePath);
+      const url = `/api/sds/download/${encodedFilePath}`;
+      
+      // Open in a new tab
+      window.open(url, '_blank');
     } catch (error) {
       console.error('Error downloading SDS:', error);
-      alert('Failed to download SDS. Please try again.');
+      // Handle error appropriately (e.g., show error notification)
     }
   };
 
@@ -281,13 +281,17 @@ const SDSDocuments = () => {
                                   <Typography variant="body2" sx={{ mr: 1 }}>
                                     {file.filename} ({file.source}, {file.date_added})
                                   </Typography>
-                                  <Tooltip title="Download">
-                                    <IconButton
+                                  <Tooltip title="Download SDS">
+                                    <IconButton 
+                                      color="primary" 
+                                      onClick={() => downloadSds({
+                                        cas_number: doc.cas_number,
+                                        filename: doc.sds_files[0].filename,
+                                        file_path: doc.file_path
+                                      })}
                                       size="small"
-                                      color="primary"
-                                      onClick={() => downloadSds(doc.cas_number, file.filename)}
                                     >
-                                      <GetAppIcon fontSize="small" />
+                                      <GetAppIcon />
                                     </IconButton>
                                   </Tooltip>
                                 </Box>
