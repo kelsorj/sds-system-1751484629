@@ -409,6 +409,143 @@ sdsRouter.get('/', async (req, res) => {
   }
 });
 
+// Get SDS by CAS number
+sdsRouter.get('/:casNumber', async (req, res) => {
+  try {
+    const { casNumber } = req.params;
+    
+    // Check if the sds_files table exists
+    const tableExists = await db.query(
+      `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sds_files')`
+    );
+    
+    if (tableExists.rows[0].exists) {
+      // Check if ghs_classifications table exists
+      const ghsTableExists = await db.query(
+        `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'ghs_classifications')`
+      );
+      
+      let sdsData = null;
+      
+      if (ghsTableExists.rows[0].exists) {
+        // Join with ghs_classifications if available
+        const result = await db.query(`
+          SELECT 
+            sf.*, 
+            c.name, 
+            c.cas_number,
+            c.molecular_formula,
+            c.molecular_weight,
+            gc.signal_word,
+            gc.hazard_statements,
+            gc.precautionary_statements,
+            gc.pictograms,
+            gc.hazard_classes,
+            gc.flammable,
+            gc.explosive,
+            gc.oxidizing,
+            gc.toxic,
+            gc.corrosive,
+            gc.acute_toxicity,
+            gc.serious_eye_damage,
+            gc.skin_corrosion,
+            gc.reproductive_toxicity,
+            gc.carcinogenicity,
+            gc.germ_cell_mutagenicity,
+            gc.respiratory_sensitization,
+            gc.aquatic_toxicity,
+            gc.classified_at
+          FROM sds_files sf 
+          JOIN chemicals c ON sf.chemical_id = c.id
+          LEFT JOIN ghs_classifications gc ON c.id = gc.chemical_id
+          WHERE c.cas_number = $1
+          LIMIT 1
+        `, [casNumber]);
+        
+        if (result.rows.length > 0) {
+          sdsData = result.rows[0];
+        }
+      } else {
+        // Join with just chemicals if no ghs_classifications
+        const result = await db.query(
+          'SELECT sf.*, c.name, c.cas_number, c.molecular_formula, c.molecular_weight FROM sds_files sf JOIN chemicals c ON sf.chemical_id = c.id WHERE c.cas_number = $1 LIMIT 1',
+          [casNumber]
+        );
+        
+        if (result.rows.length > 0) {
+          sdsData = result.rows[0];
+        }
+      }
+      
+      if (sdsData) {
+        // Format the response to match the expected structure
+        // Structure GHS data into a nested object
+        sdsData.ghs_data = {
+          signal_word: sdsData.signal_word,
+          hazard_statements: sdsData.hazard_statements,
+          precautionary_statements: sdsData.precautionary_statements,
+          pictograms: sdsData.pictograms,
+          hazard_classes: sdsData.hazard_classes,
+          flammable: sdsData.flammable,
+          explosive: sdsData.explosive,
+          oxidizing: sdsData.oxidizing,
+          toxic: sdsData.toxic,
+          corrosive: sdsData.corrosive,
+          acute_toxicity: sdsData.acute_toxicity,
+          serious_eye_damage: sdsData.serious_eye_damage,
+          skin_corrosion: sdsData.skin_corrosion,
+          reproductive_toxicity: sdsData.reproductive_toxicity,
+          carcinogenicity: sdsData.carcinogenicity,
+          germ_cell_mutagenicity: sdsData.germ_cell_mutagenicity,
+          respiratory_sensitization: sdsData.respiratory_sensitization,
+          aquatic_toxicity: sdsData.aquatic_toxicity
+        };
+        
+        res.json(sdsData);
+      } else {
+        // If no SDS found, try to find a simulated one based on chemical
+        const chemical = await db.query('SELECT id, cas_number, name, notes FROM chemicals WHERE cas_number = $1', [casNumber]);
+        
+        if (chemical.rows.length > 0) {
+          const simulatedSds = {
+            id: `sim-${chemical.rows[0].id}`,
+            chemical_id: chemical.rows[0].id,
+            cas_number: chemical.rows[0].cas_number,
+            name: chemical.rows[0].name,
+            file_path: `/simulated/sds/${chemical.rows[0].cas_number}.pdf`,
+            file_name: `${chemical.rows[0].name}_SDS.pdf`,
+            file_size: 1024, // placeholder size in bytes
+            mime_type: 'application/pdf',
+            source: 'simulation',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_valid: true,
+            validation_errors: null,
+            ghs_data: {
+              signal_word: Math.random() > 0.5 ? 'Warning' : 'Danger',
+              hazard_statements: ['H315', 'H319', 'H335'],
+              precautionary_statements: ['P261', 'P280', 'P305+P351+P338'],
+              pictograms: ['GHS07'],
+              flammable: Math.random() > 0.5,
+              toxic: Math.random() > 0.5,
+              corrosive: Math.random() > 0.5
+            }
+          };
+          
+          res.json(simulatedSds);
+        } else {
+          res.status(404).json({ error: `No SDS found for chemical with CAS ${casNumber}` });
+        }
+      }
+    } else {
+      res.status(404).json({ error: 'SDS database not initialized' });
+    }
+  } catch (err) {
+    console.error('Error getting SDS by CAS number:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 sdsRouter.get('/sources', (req, res) => {
   // Placeholder: Replace with dynamic config if needed
   res.json({
