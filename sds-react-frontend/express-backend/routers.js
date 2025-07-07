@@ -261,20 +261,26 @@ chemicalsRouter.get('/:cas_number/transactions', async (req, res) => {
 
 // SDS
 
-// Download an SDS file by encoded path
+// Download or view an SDS file by encoded path
 sdsRouter.get('/download/:encodedFilePath', async (req, res) => {
   try {
     // Get the encoded file path from the URL parameter and decode it
     const encodedFilePath = req.params.encodedFilePath;
     const filePath = decodeURIComponent(encodedFilePath);
-    console.log(`Attempting to download SDS file: ${filePath}`);
+    const disposition = req.query.disposition || 'inline'; // Default to inline viewing
+    console.log(`Attempting to access SDS file: ${filePath} with disposition: ${disposition}`);
     
     // In a production environment, you would verify the file path is valid and sanitize it
     // For this example, we'll send the file directly
     
-    // Set response headers for PDF download
+    // Set CORS headers to allow PDF viewing in browsers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Set response headers for PDF viewing/download
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${path.basename(filePath)}"`);
     
     // Try to send the actual file if it exists, otherwise send a mock PDF
     // First try the relative path within the frontend directory

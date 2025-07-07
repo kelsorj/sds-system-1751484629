@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Box, Typography, Paper, Grid, Card, CardContent, Button, CircularProgress, Alert, IconButton } from '@mui/material';
-import { GetApp as GetAppIcon, Error as ErrorIcon, CheckCircle as CheckCircleIcon, ZoomIn, ZoomOut, Fullscreen, FullscreenExit } from '@mui/icons-material';
+import { Box, Typography, Paper, Grid, Card, CardContent, Button, CircularProgress, Alert, IconButton, Stack } from '@mui/material';
+import { GetApp as GetAppIcon, Error as ErrorIcon, CheckCircle as CheckCircleIcon, ZoomIn, ZoomOut, Fullscreen, FullscreenExit, FileOpen, Download } from '@mui/icons-material';
 import { sdsService } from '../services/sdsService';
 import { chemicalService } from '../services/chemicalService';
 
@@ -54,27 +54,27 @@ const SDSViewer = () => {
       setTimeout(() => setDownloadStatus(null), 3000);
       return;
     }
-
-    setDownloadStatus('loading');
+    
     try {
-      // Make sure file_path is properly encoded
+      console.log('Downloading SDS with file path:', sdsData.file_path);
+      setDownloadStatus('downloading');
       const encodedFilePath = encodeURIComponent(sdsData.file_path);
-      console.log('Encoded path:', encodedFilePath);
-      const downloadUrl = `/api/sds/download/${encodedFilePath}`;
+      // Use attachment disposition for download
+      const downloadUrl = `/api/sds/download/${encodedFilePath}?disposition=attachment`;
       
-      // Create a temporary link and trigger download
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.setAttribute('download', `${casNumber}_SDS.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Open the download URL in a new tab
+      window.open(downloadUrl, '_blank');
       
-      setDownloadStatus('success');
-      setTimeout(() => setDownloadStatus(null), 3000);
+      setTimeout(() => {
+        setDownloadStatus('success');
+        // Clear success message after 3 seconds
+        setTimeout(() => setDownloadStatus(null), 3000);
+      }, 1000);
+      
     } catch (err) {
       console.error('Error downloading SDS:', err);
       setDownloadStatus('error');
+      // Clear error message after 3 seconds
       setTimeout(() => setDownloadStatus(null), 3000);
     }
   };
@@ -129,10 +129,10 @@ const SDSViewer = () => {
     if (sdsData && sdsData.file_path) {
       setPdfError(null);
       
-      // Create PDF URL
+      // Create PDF URL with inline disposition parameter
       try {
         const encodedFilePath = encodeURIComponent(sdsData.file_path);
-        const pdfFileUrl = `/api/sds/download/${encodedFilePath}`;
+        const pdfFileUrl = `/api/sds/download/${encodedFilePath}?disposition=inline`;
         setPdfUrl(pdfFileUrl);
       } catch (err) {
         console.error('Error setting up PDF viewer:', err);
@@ -243,17 +243,56 @@ const SDSViewer = () => {
                 <Box sx={{ 
                   height: isFullscreen ? 'calc(100vh - 300px)' : 450, 
                   border: '1px solid #eee',
-                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#f8f9fa',
+                  padding: 3,
                   transition: 'height 0.3s ease'
                 }}>
-                  <iframe 
-                    src={pdfUrl}
-                    title="SDS Document Viewer"
-                    width="100%"
-                    height="100%"
-                    style={{ border: 'none' }}
-                    onError={() => setPdfError('Failed to load PDF document')}
+                  <img 
+                    src="/sds-icon.png" 
+                    alt="SDS Document" 
+                    style={{ width: 80, height: 80, marginBottom: 16, opacity: 0.7 }}
+                    onError={(e) => e.target.style.display = 'none'}
                   />
+                  
+                  <Typography variant="h6" gutterBottom>
+                    SDS Document Available
+                  </Typography>
+                  
+                  <Typography variant="body1" paragraph align="center" sx={{ maxWidth: 600, mb: 3 }}>
+                    Safety Data Sheet for: <strong>{chemicalData?.name || casNumber}</strong>
+                  </Typography>
+
+                  <Typography variant="body2" color="text.secondary" paragraph align="center" sx={{ maxWidth: 500, mb: 4 }}>
+                    Due to security restrictions in your corporate environment, PDFs cannot be embedded directly.
+                    Use one of the options below to view or download the document.
+                  </Typography>
+                  
+                  <Stack spacing={2} direction={{xs: 'column', sm: 'row'}}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<FileOpen />}
+                      component="a"
+                      href={`http://ekmbalps1.corp.eikontx.com:6443/api/sds/download/${encodeURIComponent(sdsData.file_path)}?disposition=inline`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open PDF in New Tab
+                    </Button>
+                    
+                    <Button
+                      variant="outlined"
+                      startIcon={<Download />}
+                      onClick={downloadSds}
+                      disabled={downloadStatus === 'downloading'}
+                    >
+                      {downloadStatus === 'downloading' ? 'Downloading...' : 'Download PDF'}
+                    </Button>
+                  </Stack>
                 </Box>
               ) : (
                 <Box sx={{ 
