@@ -52,15 +52,9 @@ const ChemicalList = () => {
       const response = await chemicalService.getChemicals();
       console.log('Fetched chemicals from API:', response.data);
       
-      // Transform the data to include has_sds property
-      const chemicalsWithSdsInfo = response.data.map(chemical => {
-        return {
-          ...chemical,
-          has_sds: Boolean(chemical.hazard_statement) // Assuming chemicals with hazard statements have SDS
-        };
-      });
-      
-      setChemicals(chemicalsWithSdsInfo);
+      // The API now provides has_sds property directly
+      console.log('First chemical has_sds:', response.data[0]?.has_sds);
+      setChemicals(response.data);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching chemicals:', error);
@@ -87,19 +81,19 @@ const ChemicalList = () => {
     setSearchQuery(event.target.value);
   };
 
-  const downloadSds = async (casNumber) => {
+  const downloadSds = async (chemical) => {
     try {
-      // In a real app, you would call the API to download the SDS
-      // const blob = await sdsService.downloadSds(casNumber);
-      // const url = window.URL.createObjectURL(blob);
-      // const a = document.createElement('a');
-      // a.href = url;
-      // a.download = `SDS-${casNumber}.pdf`;
-      // document.body.appendChild(a);
-      // a.click();
-      // a.remove();
+      if (!chemical.file_path) {
+        alert(`No SDS file available for ${chemical.name}`);
+        return;
+      }
       
-      alert(`Downloading SDS for ${casNumber}...`);
+      // Download SDS file using the file path from the API
+      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://ekmbalps1.corp.eikontx.com:6443/api'}`;
+      const sdsUrl = `${apiUrl}/sds/download/${encodeURIComponent(chemical.file_path)}`;
+      
+      // Open the SDS file in a new tab
+      window.open(sdsUrl, '_blank');
     } catch (error) {
       console.error('Error downloading SDS:', error);
       alert('Failed to download SDS. Please try again.');
@@ -257,7 +251,7 @@ const ChemicalList = () => {
                               <IconButton
                                 color="primary"
                                 size="small"
-                                onClick={() => downloadSds(chemical.cas_number)}
+                                onClick={() => downloadSds(chemical)}
                               >
                                 <GetAppIcon />
                               </IconButton>
