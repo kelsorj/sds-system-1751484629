@@ -243,56 +243,59 @@ const SDSViewer = () => {
                 <Box sx={{ 
                   height: isFullscreen ? 'calc(100vh - 300px)' : 450, 
                   border: '1px solid #eee',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: '#f8f9fa',
-                  padding: 3,
+                  overflow: 'hidden',
+                  position: 'relative',
+                  padding: 0,
                   transition: 'height 0.3s ease'
                 }}>
-                  <img 
-                    src="/sds-icon.png" 
-                    alt="SDS Document" 
-                    style={{ width: 80, height: 80, marginBottom: 16, opacity: 0.7 }}
-                    onError={(e) => e.target.style.display = 'none'}
-                  />
+                  {/* Main PDF Viewer */}
+                  <iframe
+                    title={`SDS Document for ${chemicalData?.name || casNumber}`}
+                    src={`http://ekmbalps1.corp.eikontx.com:6443/api/sds/download/${encodeURIComponent(sdsData.file_path)}?disposition=inline`}
+                    width="100%"
+                    height="100%"
+                    style={{ border: 'none' }}
+                    allow="fullscreen"
+                  ></iframe>
                   
-                  <Typography variant="h6" gutterBottom>
-                    SDS Document Available
-                  </Typography>
-                  
-                  <Typography variant="body1" paragraph align="center" sx={{ maxWidth: 600, mb: 3 }}>
-                    Safety Data Sheet for: <strong>{chemicalData?.name || casNumber}</strong>
-                  </Typography>
-
-                  <Typography variant="body2" color="text.secondary" paragraph align="center" sx={{ maxWidth: 500, mb: 4 }}>
-                    Due to security restrictions in your corporate environment, PDFs cannot be embedded directly.
-                    Use one of the options below to view or download the document.
-                  </Typography>
-                  
-                  <Stack spacing={2} direction={{xs: 'column', sm: 'row'}}>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      startIcon={<FileOpen />}
-                      component="a"
-                      href={`http://ekmbalps1.corp.eikontx.com:6443/api/sds/download/${encodeURIComponent(sdsData.file_path)}?disposition=inline`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Open PDF in New Tab
-                    </Button>
+                  {/* Controls overlay */}
+                  <Box sx={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    bgcolor: 'rgba(255,255,255,0.9)',
+                    p: 1,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderTop: '1px solid #eee'
+                  }}>
+                    <Typography variant="body2" sx={{ ml: 1, fontWeight: 500 }}>
+                      {chemicalData?.name || casNumber}
+                    </Typography>
                     
-                    <Button
-                      variant="outlined"
-                      startIcon={<Download />}
-                      onClick={downloadSds}
-                      disabled={downloadStatus === 'downloading'}
-                    >
-                      {downloadStatus === 'downloading' ? 'Downloading...' : 'Download PDF'}
-                    </Button>
-                  </Stack>
+                    <Stack direction="row" spacing={1}>
+                      <IconButton
+                        color="primary"
+                        size="small"
+                        onClick={() => setIsFullscreen(!isFullscreen)}
+                        title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                      >
+                        {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
+                      </IconButton>
+                      
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<Download />}
+                        onClick={downloadSds}
+                        disabled={downloadStatus === 'downloading'}
+                      >
+                        {downloadStatus === 'downloading' ? 'Downloading...' : 'Download'}
+                      </Button>
+                    </Stack>
+                  </Box>
                 </Box>
               ) : (
                 <Box sx={{ 
