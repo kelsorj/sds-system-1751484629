@@ -13,6 +13,25 @@ const {
 const app = express();
 const PORT = process.env.PORT || 6443;
 
+// Request logging middleware to track all API calls
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  
+  // Special debug logging for SDS upload requests
+  if (req.url.includes('/sds/upload')) {
+    console.log('************************************');
+    console.log('**** SDS UPLOAD REQUEST DETECTED ****');
+    console.log('************************************');
+    console.log('Method:', req.method);
+    console.log('URL:', req.url);
+    console.log('Content-Type:', req.headers['content-type']);
+    
+    // We can't log req.body or req.files here because they're not parsed yet
+    // That happens in the multer middleware
+  }
+  next();
+});
+
 // Placeholder settings (replace with real config as needed)
 const settings = {
   APP_NAME: 'SDS/GHS Management System',

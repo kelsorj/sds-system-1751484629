@@ -23,11 +23,44 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const sdsStorage = multer.diskStorage({
   destination: function(req, file, cb) {
     // Store files in the project's sds_files directory
-    const uploadDir = path.join(__dirname, '../../sds_files');
+    const uploadDir = path.join(__dirname, '../sds_files');
+    
+    console.log('Upload directory:', uploadDir);
+    console.log('MULTER DESTINATION FUNCTION CALLED!');
+    console.log('File received:', file.originalname, file.mimetype, file.size);
     
     // Ensure the directory exists
     if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+      console.log('Creating SDS upload directory...');
+      try {
+        fs.mkdirSync(uploadDir, { recursive: true, mode: 0o755 });
+        console.log('SDS upload directory created successfully');
+      } catch (err) {
+        console.error('Error creating upload directory:', err);
+        // Try a different location if the first attempt fails
+        const fallbackDir = path.join(__dirname, 'uploads');
+        console.log('Trying fallback directory:', fallbackDir);
+        fs.mkdirSync(fallbackDir, { recursive: true, mode: 0o755 });
+        console.log('Using fallback directory for uploads');
+        return cb(null, fallbackDir);
+      }
+    } else {
+      console.log('SDS upload directory exists');
+      try {
+        // Test write permission by writing a test file
+        const testFile = path.join(uploadDir, '.test-write');
+        fs.writeFileSync(testFile, 'test');
+        fs.unlinkSync(testFile); // Remove test file
+        console.log('Upload directory is writable');
+      } catch (err) {
+        console.error('Upload directory is not writable:', err);
+        // Try a different location if the first location is not writable
+        const fallbackDir = path.join(__dirname, 'uploads');
+        console.log('Trying fallback directory:', fallbackDir);
+        fs.mkdirSync(fallbackDir, { recursive: true, mode: 0o755 });
+        console.log('Using fallback directory for uploads');
+        return cb(null, fallbackDir);
+      }
     }
     
     cb(null, uploadDir);
@@ -307,46 +340,55 @@ sdsRouter.get('/download/:encodedFilePath', async (req, res) => {
   try {
     // Get the encoded file path from the URL parameter and decode it
     const encodedFilePath = req.params.encodedFilePath;
-    const filePath = decodeURIComponent(encodedFilePath);
-    const disposition = req.query.disposition || 'inline'; // Default to inline viewing
-    console.log(`Attempting to access SDS file: ${filePath} with disposition: ${disposition}`);
+    const filePath = Buffer.from(encodedFilePath, 'base64').toString('utf-8');
     
-    // In a production environment, you would verify the file path is valid and sanitize it
-    // For this example, we'll send the file directly
+    console.log('File download requested - decoded path:', filePath);
     
-    // Set CORS headers to allow PDF viewing in browsers
+    // Try multiple possible locations for the file
+    const possiblePaths = [
+      // Direct path as stored in DB (legacy)
+      path.join(__dirname, '../../', filePath),
+      // New path format with sds_files subdirectory
+      path.join(__dirname, '../sds_files/', filePath),
+      // Fallback path in uploads directory
+      path.join(__dirname, 'uploads/', filePath),
+      // Just the filename in various directories
+      path.join(__dirname, '../sds_files/', path.basename(filePath)),
+      path.join(__dirname, 'uploads/', path.basename(filePath))
+    ];
+    
+    // Find the first path that exists
+    let fullPath = null;
+    for (const tryPath of possiblePaths) {
+      console.log('Checking path:', tryPath);
+      if (fs.existsSync(tryPath)) {
+        console.log('File found at:', tryPath);
+        fullPath = tryPath;
+        break;
+      }
+    }
+    
+    if (!fullPath) {
+      console.error('SDS file not found in any location');
+      return res.status(404).json({ error: 'SDS file not found' });
+    }
+    
+    // Handle disposition (inline or attachment)
+    const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
+    
+    // Set headers for proper PDF handling
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${path.basename(filePath)}"`);
+    
+    // Allow cross-origin access for viewing PDFs in corporate environments
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
-    // Set response headers for PDF viewing/download
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `${disposition}; filename="${path.basename(filePath)}"`);
-    
-    // Try to send the actual file if it exists, otherwise send a mock PDF
-    // First try the relative path within the frontend directory
-    const frontendPath = path.join(__dirname, '..', filePath);
-    
-    // Try the project root sds_files directory - handle both path formats
-    let rootPath;
-    if (filePath.startsWith('sds_files/')) {
-      // If path already includes sds_files/ directory
-      rootPath = path.join(__dirname, '..', '..', filePath);
-    } else {
-      // If path is just the filename
-      rootPath = path.join(__dirname, '..', '..', 'sds_files', path.basename(filePath));
-    }
-    
-    console.log(`Looking in frontend path: ${frontendPath}`);
-    console.log(`Looking in root path: ${rootPath}`);
-    
-    // Check if files exist and use the first one found
-    let fullPath = frontendPath;
-    if (fs.existsSync(rootPath)) {
-      fullPath = rootPath;
-    } else if (fs.existsSync(frontendPath)) {
-      fullPath = frontendPath;
-    }
+    // Stream the file to the client
+    console.log('Streaming file to client:', fullPath);
+    const fileStream = fs.createReadStream(fullPath);
+    fileStream.pipe(res);
     
     console.log(`Using path: ${fullPath}`);
     
@@ -594,39 +636,111 @@ sdsRouter.get('/:casNumber', async (req, res) => {
 });
 
 // Upload SDS file endpoint
-sdsRouter.post('/upload', uploadSDS.single('file'), async (req, res) => {
+sdsRouter.post('/upload', (req, res, next) => {
+  console.log('==== SDS UPLOAD REQUEST RECEIVED ====');
+  console.log('Headers:', req.headers);
+  // Add null check before using Object.keys
+  console.log('Body:', req.body ? `Present with keys: ${Object.keys(req.body).join(', ')}` : 'Not available yet (will be parsed by multer)');
+  next();
+}, uploadSDS.single('file'), async (req, res) => {
   try {
+    console.log('==== SDS FILE PROCESSING STARTED ====');
+    console.log('Received file:', req.file ? req.file.originalname : 'No file received');
+    
+    // Log complete request body after multer has parsed it
+    console.log('Request body after multer processing:', req.body);
+    
     if (!req.file) {
+      console.error('ERROR: No file in request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
     
+    // Log file details
+    console.log('File details:', {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path
+    });
+    
     const { cas_number } = req.body;
+    console.log('Processing upload for chemical with CAS number:', cas_number);
+    
     if (!cas_number) {
+      console.error('ERROR: No CAS number in request');
       return res.status(400).json({ error: 'CAS number is required' });
     }
     
     // Get the chemical id from the CAS number
-    const chemical = await db.query('SELECT id FROM chemicals WHERE cas_number = $1', [cas_number]);
-    if (chemical.rows.length === 0) {
-      return res.status(404).json({ error: `Chemical with CAS number ${cas_number} not found` });
+    console.log('Looking up chemical ID for CAS number:', cas_number);
+    let chemical_id;
+    try {
+      const chemical = await db.query('SELECT id FROM chemicals WHERE cas_number = $1', [cas_number]);
+      console.log('Database query result:', chemical.rows);
+      
+      if (chemical.rows.length === 0) {
+        console.error(`ERROR: Chemical with CAS number ${cas_number} not found in database`);
+        return res.status(404).json({ error: `Chemical with CAS number ${cas_number} not found` });
+      }
+      
+      chemical_id = chemical.rows[0].id;
+      console.log('Found chemical ID:', chemical_id);
+    } catch (dbError) {
+      console.error('Database error during chemical lookup:', dbError);
+      return res.status(500).json({ error: 'Database error during chemical lookup' });
     }
     
-    const chemical_id = chemical.rows[0].id;
-    const file_path = `sds_files/${req.file.filename}`;
+    // Get the actual directory path where the file was saved
+    const uploadDirPath = path.dirname(req.file.path);
+    console.log('File saved at path:', req.file.path);
+    console.log('Upload directory path:', uploadDirPath);
+    
+    // Store the relative path from the upload directory to the file
+    // This ensures we're storing a path that can be used to retrieve the file later
+    const file_path = req.file.filename;
     const file_size = req.file.size;
-    const file_name = req.file.filename;
+    const file_name = req.file.originalname;
+    
+    console.log('Preparing to store in database:');
+    console.log('- Chemical ID:', chemical_id);
+    console.log('- File name:', file_name);
+    console.log('- File path:', file_path);
+    console.log('- File size:', file_size);
     
     // Calculate checksum
-    const fileBuffer = fs.readFileSync(req.file.path);
-    const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    console.log('Calculating file checksum...');
+    let checksum;
+    try {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      checksum = crypto.createHash('md5').update(fileBuffer).digest('hex');
+      console.log('File checksum:', checksum);
+    } catch (checksumError) {
+      console.error('Error calculating checksum:', checksumError);
+      return res.status(500).json({ error: 'Error processing file checksum' });
+    }
     
-    // Check if this file already exists by checksum
-    const existingFile = await db.query('SELECT * FROM sds_files WHERE checksum = $1', [checksum]);
-    if (existingFile.rows.length > 0) {
-      return res.status(200).json({
-        ...existingFile.rows[0],
-        status: 'existing'
-      });
+    // Check if a file with this checksum already exists for this chemical
+    console.log('Checking for duplicate files...');
+    try {
+      const existingFile = await db.query(
+        'SELECT id FROM sds_files WHERE chemical_id = $1 AND checksum = $2',
+        [chemical_id, checksum]
+      );
+      
+      console.log('Duplicate check result:', existingFile.rows);
+      
+      if (existingFile.rows.length > 0) {
+        console.log('Duplicate file found with ID:', existingFile.rows[0].id);
+        return res.status(400).json({
+          error: 'This exact SDS file already exists for this chemical'
+        });
+      }
+      
+      console.log('No duplicate found, proceeding with insert');
+    } catch (dupCheckError) {
+      console.error('Error checking for duplicates:', dupCheckError);
+      return res.status(500).json({ error: 'Database error while checking for duplicates' });
     }
     
     // Add record to sds_files table
@@ -635,23 +749,38 @@ sdsRouter.post('/upload', uploadSDS.single('file'), async (req, res) => {
     const language = req.body.language || 'en';
     const now = new Date();
     
-    const result = await db.query(
-      `INSERT INTO sds_files 
-       (chemical_id, file_name, file_path, file_size, checksum, download_date, source, version, language, is_valid) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
-       RETURNING id`,
-      [chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]
-    );
+    console.log('Inserting new SDS file record into database...');
+    try {
+      const insertQuery = `
+        INSERT INTO sds_files 
+        (chemical_id, file_name, file_path, file_size, checksum, download_date, source, version, language, is_valid) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+        RETURNING *`;
+      
+      console.log('Running SQL query:', insertQuery);
+      console.log('Query parameters:', [chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]);
+      
+      const newSdsFile = await db.query(
+        insertQuery,
+        [chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]
+      );
+      
+      console.log('Insert successful! New record ID:', newSdsFile.rows[0].id);
+      console.log('Full database record:', newSdsFile.rows[0]);
+      
+      const response = {
+        ...newSdsFile.rows[0],
+        status: 'created'
+      };
+      
+      console.log('Sending success response to client:', response);
+      res.status(201).json(response);
+    } catch (insertError) {
+      console.error('Database error during SDS file insertion:', insertError);
+      return res.status(500).json({ error: 'Error saving SDS file to database' });
+    }
     
-    res.status(201).json({
-      id: result.rows[0].id,
-      file_name,
-      file_path,
-      file_size,
-      checksum,
-      download_date: now,
-      status: 'created'
-    });
+    console.log('SDS file upload completed successfully!');
   } catch (err) {
     console.error('Error uploading SDS file:', err);
     res.status(500).json({ error: err.message });

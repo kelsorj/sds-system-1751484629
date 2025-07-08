@@ -48,6 +48,11 @@ const ChemicalForm = () => {
     has_sds: false,
   });
   
+  // State for SDS file upload
+  const [sdsFile, setSdsFile] = useState(null);
+  const [triggerSdsUpload, setTriggerSdsUpload] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  
   // Units for dropdown
   const units = ['g', 'kg', 'mg', 'μg', 'L', 'mL', 'μL'];
   
@@ -127,12 +132,23 @@ const ChemicalForm = () => {
       setSaving(true);
       setError(null);
       
+      // First save the chemical data
       if (isEditMode) {
         await chemicalService.updateChemical(casNumber, chemical);
-        setSuccessMessage('Chemical updated successfully');
+        
+        // If we have a selected SDS file, upload it now
+        if (sdsFile) {
+          console.log('Uploading SDS file with chemical update...');
+          setIsUploadingFile(true);
+          setTriggerSdsUpload(true);
+        } else {
+          setSuccessMessage('Chemical updated successfully');
+        }
       } else {
-        await chemicalService.addChemical(chemical);
+        const newChemical = await chemicalService.addChemical(chemical);
+        console.log('Added new chemical:', newChemical);
         setSuccessMessage('Chemical added successfully');
+        
         // Clear form after successful addition
         if (!isEditMode) {
           setChemical({
@@ -145,20 +161,32 @@ const ChemicalForm = () => {
             location: '',
             has_sds: false,
           });
+          setSdsFile(null);
         }
       }
     } catch (err) {
       console.error('Error saving chemical:', err);
       setError(`Failed to save chemical: ${err.message}`);
     } finally {
-      setSaving(false);
+      if (!sdsFile || !isEditMode) {
+        setSaving(false);
+      }
     }
+  };
+  
+  // Handle SDS file selection
+  const handleSdsFileSelected = (file) => {
+    console.log('SDS file selected:', file.name);
+    setSdsFile(file);
   };
   
   // Handle SDS file uploaded event
   const handleSdsFileUploaded = (uploadResult) => {
-    setSuccessMessage('SDS file uploaded successfully');
     console.log('SDS file uploaded:', uploadResult);
+    setIsUploadingFile(false);
+    setSaving(false);
+    setSdsFile(null);
+    setSuccessMessage('Chemical and SDS file saved successfully');
   };
   
   // Handle close of success message
@@ -351,9 +379,19 @@ const ChemicalForm = () => {
                     }}
                   >
                     <SDSDropZone 
-                      casNumber={chemical.cas_number} 
-                      onFileUploaded={handleSdsFileUploaded} 
+                      casNumber={chemical.cas_number}
+                      onFileSelected={handleSdsFileSelected}
+                      onFileUploaded={handleSdsFileUploaded}
+                      triggerUpload={triggerSdsUpload}
+                      setTriggerUpload={setTriggerSdsUpload}
                     />
+                    {sdsFile && (
+                      <Box mt={1} display="flex" alignItems="center">
+                        <Typography variant="body2" color="primary">
+                          PDF will be uploaded when you click "Save Changes"
+                        </Typography>
+                      </Box>
+                    )}
                   </Paper>
                 )}
               </Grid>
@@ -382,7 +420,7 @@ const ChemicalForm = () => {
                     {saving ? (
                       <>
                         <CircularProgress size={24} sx={{ mr: 1 }} />
-                        Saving...
+                        {isUploadingFile ? 'Uploading SDS...' : 'Saving...'}
                       </>
                     ) : (
                       isEditMode ? 'Save Changes' : 'Add Chemical'
