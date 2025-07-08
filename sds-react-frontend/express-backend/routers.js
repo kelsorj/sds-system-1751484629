@@ -328,45 +328,65 @@ sdsRouter.get('/download/:encodedFilePath', async (req, res) => {
   try {
     // Get the encoded file path from the URL parameter and decode it
     const encodedFilePath = req.params.encodedFilePath;
-    const filePath = Buffer.from(encodedFilePath, 'base64').toString('utf-8');
+    let filePath;
     
-    console.log('File download requested - decoded path:', filePath);
+    try {
+      // Try URL decoding first since frontend is using encodeURIComponent
+      filePath = decodeURIComponent(encodedFilePath);
+      console.log('URL-decoded file path:', filePath);
+    } catch (urlDecodeError) {
+      console.error('Error URL-decoding path:', urlDecodeError);
+      // Fall back to base64 decoding as a secondary option
+      try {
+        filePath = Buffer.from(encodedFilePath, 'base64').toString('utf-8');
+        console.log('Base64 decoded file path:', filePath);
+      } catch (base64Error) {
+        console.error('Error with base64 decoding:', base64Error);
+        // Use raw path as last resort
+        filePath = encodedFilePath;
+        console.log('Using raw file path:', filePath);
+      }
+    }
     
-    // Try multiple possible locations for the file
+    // Extract just the filename from the path
+    const fileName = path.basename(filePath);
+    console.log('Extracted filename:', fileName);
+    
+    // Try different possible locations for the file
     const possiblePaths = [
-      // Direct path as stored in DB (legacy)
-      path.join(__dirname, '../../', filePath),
-      // New path format with sds_files subdirectory
-      path.join(__dirname, '../sds_files/', filePath),
-      // Fallback path in uploads directory
-      path.join(__dirname, 'uploads/', filePath),
-      // Just the filename in various directories
-      path.join(__dirname, '../sds_files/', path.basename(filePath)),
-      path.join(__dirname, 'uploads/', path.basename(filePath))
+      // Primary location - the correct sds_files directory (parent directory)
+      path.join(__dirname, '../../sds_files', fileName),
+      // Alternative locations
+      path.join(__dirname, '../sds_files', fileName),
+      path.join(__dirname, '../../sds_files', path.basename(filePath)),
+      path.join(__dirname, '../sds_files', path.basename(filePath)),
+      path.join(__dirname, 'uploads', fileName),
+      // If the path has a directory in it, try direct path
+      path.join(__dirname, '../../', filePath)
     ];
+    
+    // Handle disposition (inline or attachment)
+    const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
     
     // Find the first path that exists
     let fullPath = null;
-    for (const tryPath of possiblePaths) {
-      console.log('Checking path:', tryPath);
-      if (fs.existsSync(tryPath)) {
-        console.log('File found at:', tryPath);
-        fullPath = tryPath;
+    for (const checkPath of possiblePaths) {
+      console.log('Checking path:', checkPath);
+      if (fs.existsSync(checkPath)) {
+        console.log('File found at:', checkPath);
+        fullPath = checkPath;
         break;
       }
     }
     
     if (!fullPath) {
-      console.error('SDS file not found in any location');
-      return res.status(404).json({ error: 'SDS file not found' });
+      console.log('SDS file not found in any location');
+      return res.status(404).send('File not found');
     }
-    
-    // Handle disposition (inline or attachment)
-    const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
     
     // Set headers for proper PDF handling
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `${disposition}; filename="${path.basename(filePath)}"`);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
     
     // Allow cross-origin access for viewing PDFs in corporate environments
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -375,19 +395,7 @@ sdsRouter.get('/download/:encodedFilePath', async (req, res) => {
     
     // Stream the file to the client
     console.log('Streaming file to client:', fullPath);
-    const fileStream = fs.createReadStream(fullPath);
-    fileStream.pipe(res);
-    
-    console.log(`Using path: ${fullPath}`);
-    
-    if (fs.existsSync(fullPath)) {
-      console.log(`File exists, streaming...`);
-      fs.createReadStream(fullPath).pipe(res);
-    } else {
-      console.log(`File not found, sending mock PDF`);
-      // Create a simple PDF on the fly (this is just a placeholder)
-      res.send(`%PDF-1.4\n1 0 obj<</Title (Safety Data Sheet for ${path.basename(filePath)})>>\nendobj\ntrailer<</Root 1 0 R>>\n%%EOF`);
-    }
+    fs.createReadStream(fullPath).pipe(res);
   } catch (err) {
     console.error('Error downloading SDS file:', err);
     res.status(500).json({ error: err.message });
