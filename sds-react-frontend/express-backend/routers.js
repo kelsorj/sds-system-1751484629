@@ -8,6 +8,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const pdfParser = require('./utils/pdfParser');
 
 const chemicalsRouter = express.Router();
 const sdsRouter = express.Router();
@@ -888,11 +889,23 @@ sdsRouter.post('/upload', (req, res, next) => {
         
         const response = {
           ...newSdsFile.rows[0],
-          status: 'created'
+          status: 'created',
+          ghs_extraction_queued: true
         };
         
         console.log('Sending success response to client:', response);
         res.status(201).json(response);
+        
+        // Start GHS extraction as a background task after response is sent
+        console.log('Starting background GHS extraction from uploaded PDF...');
+        const absoluteFilePath = req.file.path;
+        pdfParser.extractAndStoreGhsFromPdf(cas_number, absoluteFilePath, db)
+          .then(result => {
+            console.log('Background GHS extraction completed:', result);
+          })
+          .catch(err => {
+            console.error('Background GHS extraction failed:', err);
+          });
         return;
       } catch (explicitIdError) {
         console.error('Failed with explicit ID, trying alternative approach:', explicitIdError);
@@ -920,11 +933,23 @@ sdsRouter.post('/upload', (req, res, next) => {
       
       const backupResponse = {
         ...backupResult.rows[0],
-        status: 'created'
+        status: 'created',
+        ghs_extraction_queued: true
       };
       
       console.log('Sending success response to client:', backupResponse);
       res.status(201).json(backupResponse);
+      
+      // Start GHS extraction as a background task after response is sent
+      console.log('Starting background GHS extraction from uploaded PDF (backup path)...');
+      const absoluteFilePath = req.file.path;
+      pdfParser.extractAndStoreGhsFromPdf(cas_number, absoluteFilePath, db)
+        .then(result => {
+          console.log('Background GHS extraction completed:', result);
+        })
+        .catch(err => {
+          console.error('Background GHS extraction failed:', err);
+        });
     } catch (insertError) {
       console.error('All database insertion attempts failed:', insertError);
       return res.status(500).json({ error: 'Error saving SDS file to database' });
@@ -993,13 +1018,100 @@ sdsRouter.post('/download', async (req, res) => {
   }
 });
 
-// Proxy POST /api/sds/:cas_number/extract-ghs
+// Extract GHS info from PDF and store in database
 sdsRouter.post('/:cas_number/extract-ghs', async (req, res) => {
+  try {
+    const { cas_number } = req.params;
+    const { file_path } = req.body;
+    
+    if (!file_path) {
+      return res.status(400).json({ success: false, error: 'File path is required' });
+    }
+    
+    console.log(`Received GHS extraction request for CAS ${cas_number} and file: ${file_path}`);
+    
+    // Try different possible file locations
+    const possiblePaths = [
+      // Primary location - the correct sds_files directory (parent directory)
+      path.join(__dirname, '../../sds_files', path.basename(file_path)),
+      // Alternative locations
+      path.join(__dirname, '../sds_files', path.basename(file_path)),
+      path.join(__dirname, 'uploads', path.basename(file_path)),
+      // If the path has a directory in it, try direct path
+      path.join(__dirname, '../../', file_path)
+    ];
+    
+    // Find the first path that exists
+    let fullPath = null;
+    for (const checkPath of possiblePaths) {
+      console.log('Checking path:', checkPath);
+      if (fs.existsSync(checkPath)) {
+        console.log('File found at:', checkPath);
+        fullPath = checkPath;
+        break;
+      }
+    }
+    
+    if (!fullPath) {
+      console.log('SDS file not found in any location');
+      return res.status(404).json({ success: false, error: 'SDS file not found' });
+    }
+    
+    // Extract and store GHS information
+    const result = await pdfParser.extractAndStoreGhsFromPdf(cas_number, fullPath, db);
+    
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+    
+    // Return the extracted GHS information
+    res.json(result);
+  } catch (err) {
+    console.error('Error in GHS extraction endpoint:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get GHS classifications for a chemical
+sdsRouter.get('/:cas_number/ghs', async (req, res) => {
+  try {
+    const { cas_number } = req.params;
+    
+    // Find chemical ID
+    const chemicalResult = await db.query(
+      'SELECT id FROM chemicals WHERE cas_number = $1',
+      [cas_number]
+    );
+    
+    if (chemicalResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Chemical not found' });
+    }
+    
+    const chemicalId = chemicalResult.rows[0].id;
+    
+    // Get GHS classifications
+    const ghsResult = await db.query(
+      'SELECT * FROM ghs_classifications WHERE chemical_id = $1 ORDER BY classified_at DESC',
+      [chemicalId]
+    );
+    
+    res.json({
+      success: true,
+      ghs_classifications: ghsResult.rows
+    });
+  } catch (err) {
+    console.error('Error getting GHS classifications:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Proxy POST /api/sds/:cas_number/extract-ghs to FastAPI (legacy support)
+sdsRouter.post('/:cas_number/extract-ghs-external', async (req, res) => {
   try {
     const response = await axios.post(`${FASTAPI_SDS_URL}/${req.params.cas_number}/extract-ghs`, req.body);
     res.status(response.status).json(response.data);
   } catch (err) {
-    res.status(err.response?.status || 500).json({ error: err.message, details: err.response?.data });
+    res.status(500).json({ error: err.message });
   }
 });
 
