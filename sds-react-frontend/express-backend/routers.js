@@ -7,6 +7,7 @@ const { parse } = require('csv-parse/sync');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const chemicalsRouter = express.Router();
 const sdsRouter = express.Router();
@@ -18,6 +19,46 @@ const bulkImportRouter = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
+// Configure storage for SDS file uploads
+const sdsStorage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    // Store files in the project's sds_files directory
+    const uploadDir = path.join(__dirname, '../../sds_files');
+    
+    // Ensure the directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    
+    cb(null, uploadDir);
+  },
+  filename: function(req, file, cb) {
+    // Use CAS number as filename if available, otherwise use original name
+    const casNumber = req.body.cas_number;
+    if (casNumber) {
+      cb(null, `${casNumber}-SDS.pdf`);
+    } else {
+      cb(null, file.originalname);
+    }
+  }
+});
+
+// File filter to only allow PDFs
+const pdfFilter = (req, file, cb) => {
+  if (file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(new Error('Only PDF files are allowed for SDS uploads'), false);
+  }
+};
+
+const uploadSDS = multer({ 
+  storage: sdsStorage,
+  fileFilter: pdfFilter,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
+// For other uploads that don't need storage
 const upload = multer();
 
 const FASTAPI_SDS_URL = process.env.FASTAPI_SDS_URL || 'http://localhost:8000/api/sds';
@@ -548,6 +589,71 @@ sdsRouter.get('/:casNumber', async (req, res) => {
     }
   } catch (err) {
     console.error('Error getting SDS by CAS number:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upload SDS file endpoint
+sdsRouter.post('/upload', uploadSDS.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    const { cas_number } = req.body;
+    if (!cas_number) {
+      return res.status(400).json({ error: 'CAS number is required' });
+    }
+    
+    // Get the chemical id from the CAS number
+    const chemical = await db.query('SELECT id FROM chemicals WHERE cas_number = $1', [cas_number]);
+    if (chemical.rows.length === 0) {
+      return res.status(404).json({ error: `Chemical with CAS number ${cas_number} not found` });
+    }
+    
+    const chemical_id = chemical.rows[0].id;
+    const file_path = `sds_files/${req.file.filename}`;
+    const file_size = req.file.size;
+    const file_name = req.file.filename;
+    
+    // Calculate checksum
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const checksum = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+    
+    // Check if this file already exists by checksum
+    const existingFile = await db.query('SELECT * FROM sds_files WHERE checksum = $1', [checksum]);
+    if (existingFile.rows.length > 0) {
+      return res.status(200).json({
+        ...existingFile.rows[0],
+        status: 'existing'
+      });
+    }
+    
+    // Add record to sds_files table
+    const source = req.body.source || 'manual_upload';
+    const version = req.body.version || '';
+    const language = req.body.language || 'en';
+    const now = new Date();
+    
+    const result = await db.query(
+      `INSERT INTO sds_files 
+       (chemical_id, file_name, file_path, file_size, checksum, download_date, source, version, language, is_valid) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+       RETURNING id`,
+      [chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]
+    );
+    
+    res.status(201).json({
+      id: result.rows[0].id,
+      file_name,
+      file_path,
+      file_size,
+      checksum,
+      download_date: now,
+      status: 'created'
+    });
+  } catch (err) {
+    console.error('Error uploading SDS file:', err);
     res.status(500).json({ error: err.message });
   }
 });

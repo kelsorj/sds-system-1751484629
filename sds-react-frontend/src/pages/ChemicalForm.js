@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material';
 import { chemicalService } from '../services/chemicalService';
 import MoleculeViewer from '../components/MoleculeViewer';
+import SDSDropZone from '../components/SDSDropZone';
 
 const ChemicalForm = () => {
   const { casNumber } = useParams();
@@ -152,6 +153,12 @@ const ChemicalForm = () => {
     } finally {
       setSaving(false);
     }
+  };
+  
+  // Handle SDS file uploaded event
+  const handleSdsFileUploaded = (uploadResult) => {
+    setSuccessMessage('SDS file uploaded successfully');
+    console.log('SDS file uploaded:', uploadResult);
   };
   
   // Handle close of success message
@@ -289,13 +296,13 @@ const ChemicalForm = () => {
                 </Grid>
               </Grid>
               
-              {/* Right column: Structure visualization */}
+              {/* Right column: Structure visualization and SDS upload */}
               <Grid item xs={12} md={4}>
                 <Paper 
                   elevation={2} 
                   sx={{ 
                     p: 2, 
-                    height: '100%',
+                    mb: 3,
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -333,6 +340,22 @@ const ChemicalForm = () => {
                     </Box>
                   )}
                 </Paper>
+                
+                {/* SDS Upload Section */}
+                {isEditMode && chemical.cas_number && (
+                  <Paper 
+                    elevation={2} 
+                    sx={{ 
+                      p: 2, 
+                      bgcolor: '#f8f8f8'
+                    }}
+                  >
+                    <SDSDropZone 
+                      casNumber={chemical.cas_number} 
+                      onFileUploaded={handleSdsFileUploaded} 
+                    />
+                  </Paper>
+                )}
               </Grid>
               
               <Grid item xs={12}>
