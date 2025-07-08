@@ -22,57 +22,45 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 // Configure storage for SDS file uploads
 const sdsStorage = multer.diskStorage({
   destination: function(req, file, cb) {
-    // Store files in the project's sds_files directory
-    const uploadDir = path.join(__dirname, '../sds_files');
+    // Use the correct location (one level up from express-backend)
+    const uploadDir = path.join(__dirname, '../../sds_files');
+    console.log('SDS upload directory path:', uploadDir);
     
-    console.log('Upload directory:', uploadDir);
-    console.log('MULTER DESTINATION FUNCTION CALLED!');
-    console.log('File received:', file.originalname, file.mimetype, file.size);
-    
-    // Ensure the directory exists
-    if (!fs.existsSync(uploadDir)) {
-      console.log('Creating SDS upload directory...');
-      try {
-        fs.mkdirSync(uploadDir, { recursive: true, mode: 0o755 });
-        console.log('SDS upload directory created successfully');
-      } catch (err) {
-        console.error('Error creating upload directory:', err);
-        // Try a different location if the first attempt fails
-        const fallbackDir = path.join(__dirname, 'uploads');
-        console.log('Trying fallback directory:', fallbackDir);
-        fs.mkdirSync(fallbackDir, { recursive: true, mode: 0o755 });
-        console.log('Using fallback directory for uploads');
-        return cb(null, fallbackDir);
+    try {
+      // Check if directory exists
+      if (!fs.existsSync(uploadDir)) {
+        console.log('Upload directory does not exist, creating it...');
+        // Create directory recursively
+        fs.mkdirSync(uploadDir, { recursive: true });
+        console.log('Created directory:', uploadDir);
       }
-    } else {
-      console.log('SDS upload directory exists');
+      
+      // Check if directory is writable
+      fs.accessSync(uploadDir, fs.constants.W_OK);
+      console.log('Directory is writable:', uploadDir);
+      
+      cb(null, uploadDir);
+    } catch (err) {
+      console.error('Error with upload directory:', err);
+      
+      // Fallback to tmp directory if main directory is not available
+      const tmpDir = '/tmp/sds_files';
+      console.log('Attempting to use fallback directory:', tmpDir);
+      
       try {
-        // Test write permission by writing a test file
-        const testFile = path.join(uploadDir, '.test-write');
-        fs.writeFileSync(testFile, 'test');
-        fs.unlinkSync(testFile); // Remove test file
-        console.log('Upload directory is writable');
-      } catch (err) {
-        console.error('Upload directory is not writable:', err);
-        // Try a different location if the first location is not writable
-        const fallbackDir = path.join(__dirname, 'uploads');
-        console.log('Trying fallback directory:', fallbackDir);
-        fs.mkdirSync(fallbackDir, { recursive: true, mode: 0o755 });
-        console.log('Using fallback directory for uploads');
-        return cb(null, fallbackDir);
+        if (!fs.existsSync(tmpDir)) {
+          fs.mkdirSync(tmpDir, { recursive: true });
+        }
+        cb(null, tmpDir);
+      } catch (tmpErr) {
+        console.error('Error with fallback directory:', tmpErr);
+        cb(new Error('Cannot find writable upload directory'));
       }
     }
-    
-    cb(null, uploadDir);
   },
   filename: function(req, file, cb) {
-    // Use CAS number as filename if available, otherwise use original name
-    const casNumber = req.body.cas_number;
-    if (casNumber) {
-      cb(null, `${casNumber}-SDS.pdf`);
-    } else {
-      cb(null, file.originalname);
-    }
+    // Keep original filename
+    cb(null, file.originalname);
   }
 });
 
@@ -786,8 +774,8 @@ sdsRouter.post('/upload', (req, res, next) => {
     // Store the relative path from the upload directory to the file
     // File info to be stored in DB
     const file_name = req.file.originalname;
-    // Store relative path including sds_files directory for consistency
-    const file_path = `sds_files/${file_name}`;
+    // Store the correct relative path to the file in the parent directory
+    const file_path = `../sds_files/${file_name}`;
     const file_size = req.file.size;
     
     console.log('Preparing to store in database:');
