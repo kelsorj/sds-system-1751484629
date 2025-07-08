@@ -52,4 +52,16 @@ export const sdsService = {
     });
     return response.data;
   },
+  
+  // Extract GHS info from an existing PDF file
+  extractGhsFromPdf: async (casNumber, filePath) => {
+    const response = await api.post(`/sds/${casNumber}/extract-ghs`, { file_path: filePath });
+    return response.data;
+  },
+  
+  // Get GHS classifications for a chemical
+  getGhsClassifications: async (casNumber) => {
+    const response = await api.get(`/sds/${casNumber}/ghs`);
+    return response.data;
+  },
 };
