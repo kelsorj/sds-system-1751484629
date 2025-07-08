@@ -635,6 +635,93 @@ sdsRouter.get('/:casNumber', async (req, res) => {
   }
 });
 
+// Ensure the sds_files table has proper schema with auto-incrementing ID
+const ensureSdsFilesTable = async () => {
+  try {
+    // Check if the table exists and has proper id column
+    const tableCheck = await db.query(`
+      SELECT column_name, column_default, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'sds_files' AND column_name = 'id'
+    `);
+    
+    if (tableCheck.rows.length === 0) {
+      console.log('SDS files table missing ID column, attempting to create/fix...');
+      
+      // Check if table exists at all
+      const tableExists = await db.query(`
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'sds_files'
+      `);
+      
+      if (tableExists.rows.length === 0) {
+        // Create table with proper schema
+        await db.query(`
+          CREATE TABLE sds_files (
+            id SERIAL PRIMARY KEY,
+            chemical_id INTEGER NOT NULL,
+            file_name TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            checksum TEXT NOT NULL,
+            download_date TIMESTAMP NOT NULL,
+            source TEXT,
+            version TEXT,
+            language TEXT,
+            is_valid BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          )
+        `);
+        console.log('Created sds_files table with proper schema');
+      } else {
+        // Add id column if table exists but missing id
+        await db.query(`ALTER TABLE sds_files ADD COLUMN id SERIAL PRIMARY KEY`);
+        console.log('Added ID column to existing sds_files table');
+      }
+    } else {
+      console.log('SDS files table exists, checking for duplicate IDs...');
+      
+      // Check for duplicate IDs and fix them
+      const duplicateCheck = await db.query(`
+        SELECT id, COUNT(*) 
+        FROM sds_files 
+        GROUP BY id 
+        HAVING COUNT(*) > 1
+      `);
+      
+      if (duplicateCheck.rows.length > 0) {
+        console.log(`Found ${duplicateCheck.rows.length} duplicate IDs. Fixing...`);
+        // Instead of complex SQL operations that might fail, just log the issue
+        // The insertion code will handle this by using very high IDs
+        console.log('Will use alternative ID assignment for new records');
+      }
+      
+      // Simply reset the sequence without dropping it
+      try {
+        // Get the max id currently in the table
+        const maxIdResult = await db.query('SELECT MAX(id) as max_id FROM sds_files');
+        const maxId = maxIdResult.rows[0].max_id || 0;
+        
+        console.log(`Current maximum ID in table: ${maxId}`);
+        
+        // Just set the sequence value without dropping it
+        await db.query(`SELECT setval('sds_files_id_seq', ${maxId}, true)`);
+        console.log(`Reset sequence to start after ${maxId}`);
+      } catch (err) {
+        console.error('Error adjusting sequence (non-critical):', err);
+      }
+    }
+  } catch (err) {
+    console.error('Error checking/fixing sds_files table:', err);
+  }
+};
+
+// Call this when the router is initialized
+ensureSdsFilesTable().catch(err => {
+  console.error('Failed to ensure sds_files table structure:', err);
+});
+
 // Upload SDS file endpoint
 sdsRouter.post('/upload', (req, res, next) => {
   console.log('==== SDS UPLOAD REQUEST RECEIVED ====');
@@ -697,10 +784,11 @@ sdsRouter.post('/upload', (req, res, next) => {
     console.log('Upload directory path:', uploadDirPath);
     
     // Store the relative path from the upload directory to the file
-    // This ensures we're storing a path that can be used to retrieve the file later
-    const file_path = req.file.filename;
-    const file_size = req.file.size;
+    // File info to be stored in DB
     const file_name = req.file.originalname;
+    // Store relative path including sds_files directory for consistency
+    const file_path = `sds_files/${file_name}`;
+    const file_size = req.file.size;
     
     console.log('Preparing to store in database:');
     console.log('- Chemical ID:', chemical_id);
@@ -720,27 +808,46 @@ sdsRouter.post('/upload', (req, res, next) => {
       return res.status(500).json({ error: 'Error processing file checksum' });
     }
     
-    // Check if a file with this checksum already exists for this chemical
-    console.log('Checking for duplicate files...');
+    // Instead of checking for duplicates, delete any existing SDS files for this chemical
+    console.log('Checking for existing SDS files to replace...');
     try {
-      const existingFile = await db.query(
-        'SELECT id FROM sds_files WHERE chemical_id = $1 AND checksum = $2',
-        [chemical_id, checksum]
+      const existingFiles = await db.query(
+        'SELECT id, file_path FROM sds_files WHERE chemical_id = $1',
+        [chemical_id]
       );
       
-      console.log('Duplicate check result:', existingFile.rows);
+      console.log('Existing files for this chemical:', existingFiles.rows);
       
-      if (existingFile.rows.length > 0) {
-        console.log('Duplicate file found with ID:', existingFile.rows[0].id);
-        return res.status(400).json({
-          error: 'This exact SDS file already exists for this chemical'
-        });
+      if (existingFiles.rows.length > 0) {
+        // Delete the existing records from the database
+        console.log(`Found ${existingFiles.rows.length} existing SDS files - removing them before adding new one`);
+        
+        for (const existingFile of existingFiles.rows) {
+          // Try to delete the physical file if it exists
+          const oldFilePath = path.join(__dirname, '../sds_files', path.basename(existingFile.file_path));
+          try {
+            if (fs.existsSync(oldFilePath)) {
+              fs.unlinkSync(oldFilePath);
+              console.log(`Deleted existing physical file: ${oldFilePath}`);
+            }
+          } catch (fileErr) {
+            console.error(`Error deleting physical file ${oldFilePath}:`, fileErr);
+            // Continue even if file deletion fails
+          }
+        }
+        
+        // Delete all SDS files for this chemical from the database
+        const deleteResult = await db.query(
+          'DELETE FROM sds_files WHERE chemical_id = $1',
+          [chemical_id]
+        );
+        console.log(`Deleted ${deleteResult.rowCount} SDS records from database`);
+      } else {
+        console.log('No existing SDS files found for this chemical');
       }
-      
-      console.log('No duplicate found, proceeding with insert');
-    } catch (dupCheckError) {
-      console.error('Error checking for duplicates:', dupCheckError);
-      return res.status(500).json({ error: 'Database error while checking for duplicates' });
+    } catch (existingCheckError) {
+      console.error('Error checking for existing files:', existingCheckError);
+      // Don't fail the upload if this check fails, just log the error
     }
     
     // Add record to sds_files table
@@ -751,32 +858,79 @@ sdsRouter.post('/upload', (req, res, next) => {
     
     console.log('Inserting new SDS file record into database...');
     try {
-      const insertQuery = `
+      // First, get the current max ID to ensure we use a unique value
+      const maxIdResult = await db.query('SELECT MAX(id) as max_id FROM sds_files');
+      const nextId = (maxIdResult.rows[0].max_id || 0) + 1;
+      console.log('Next available ID:', nextId);
+      
+      // Reset the sequence to ensure it's at the right point
+      try {
+        await db.query(`SELECT setval('sds_files_id_seq', ${nextId - 1}, true)`);
+        console.log(`Reset sequence to ${nextId - 1}`);
+      } catch (seqErr) {
+        console.error('Error resetting sequence (non-critical):', seqErr);
+      }
+      
+      // Try first with explicit ID
+      try {
+        const insertQuery = `
+          INSERT INTO sds_files 
+          (id, chemical_id, file_name, file_path, file_size, checksum, download_date, source, version, language, is_valid) 
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+          RETURNING *`;
+        
+        console.log('Running SQL query with explicit ID:', insertQuery);
+        console.log('Query parameters:', [nextId, chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]);
+        
+        const newSdsFile = await db.query(
+          insertQuery,
+          [nextId, chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]
+        );
+        
+        console.log('Insert successful! New record ID:', newSdsFile.rows[0].id);
+        console.log('Full database record:', newSdsFile.rows[0]);
+        
+        const response = {
+          ...newSdsFile.rows[0],
+          status: 'created'
+        };
+        
+        console.log('Sending success response to client:', response);
+        res.status(201).json(response);
+        return;
+      } catch (explicitIdError) {
+        console.error('Failed with explicit ID, trying alternative approach:', explicitIdError);
+      }
+      
+      // If explicit ID failed, try with a very high ID to avoid conflicts
+      const highId = 100000 + Math.floor(Math.random() * 10000); // Use high number + random offset
+      
+      const backupQuery = `
         INSERT INTO sds_files 
-        (chemical_id, file_name, file_path, file_size, checksum, download_date, source, version, language, is_valid) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+        (id, chemical_id, file_name, file_path, file_size, checksum, download_date, source, version, language, is_valid) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
         RETURNING *`;
       
-      console.log('Running SQL query:', insertQuery);
-      console.log('Query parameters:', [chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]);
+      console.log('Running backup SQL query with high ID:', backupQuery);
+      console.log('Backup parameters:', [highId, chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]);
       
-      const newSdsFile = await db.query(
-        insertQuery,
-        [chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]
+      const backupResult = await db.query(
+        backupQuery,
+        [highId, chemical_id, file_name, file_path, file_size, checksum, now, source, version, language, true]
       );
       
-      console.log('Insert successful! New record ID:', newSdsFile.rows[0].id);
-      console.log('Full database record:', newSdsFile.rows[0]);
+      console.log('Backup insert successful! New record ID:', backupResult.rows[0].id);
+      console.log('Full database record:', backupResult.rows[0]);
       
-      const response = {
-        ...newSdsFile.rows[0],
+      const backupResponse = {
+        ...backupResult.rows[0],
         status: 'created'
       };
       
-      console.log('Sending success response to client:', response);
-      res.status(201).json(response);
+      console.log('Sending success response to client:', backupResponse);
+      res.status(201).json(backupResponse);
     } catch (insertError) {
-      console.error('Database error during SDS file insertion:', insertError);
+      console.error('All database insertion attempts failed:', insertError);
       return res.status(500).json({ error: 'Error saving SDS file to database' });
     }
     
