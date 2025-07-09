@@ -13,6 +13,9 @@ const SDSViewer = () => {
   const [chemicalData, setChemicalData] = useState(null);
   const [sdsData, setSdsData] = useState(null);
   const [downloadStatus, setDownloadStatus] = useState(null);
+  const [parsing, setParsing] = useState(false);
+  const [parseSuccess, setParseSuccess] = useState(false);
+  const [parseError, setParseError] = useState(null);
   
   // PDF viewer state
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -200,6 +203,61 @@ const SDSViewer = () => {
     }
   };
 
+  // Function to parse the PDF and extract GHS information
+  const parsePDF = async () => {
+    try {
+      setParsing(true);
+      setParseError(null);
+      setParseSuccess(false);
+      setSaveStatus(null);
+      
+      if (!sdsData || !sdsData.file_path || !sdsData.cas_number) {
+        throw new Error('SDS data is missing required information');
+      }
+      
+      const result = await sdsService.extractGhsFromPdf(sdsData.cas_number, sdsData.file_path);
+      
+      if (result.success) {
+        setParseSuccess(true);
+        setSaveStatus('success');
+        
+        // Update local data with the new GHS information
+        if (result.chemical) {
+          setChemicalData(prev => ({
+            ...prev,
+            ...result.chemical
+          }));
+        }
+        
+        if (result.ghs_info) {
+          setGhsData({
+            pictograms: parseGhsField(result.chemical?.ghs_pictograms || result.ghs_info.pictograms),
+            hazard_statements: parseGhsField(result.chemical?.hazard_statement || result.ghs_info.hazard_statements),
+            precautionary_statements: parseGhsField(result.chemical?.precautionary_statement || result.ghs_info.precautionary_statements),
+            signal_word: result.chemical?.signal_word || result.ghs_info.signal_word || '',
+            flammable: result.ghs_info.flammable || false,
+            toxic: result.ghs_info.toxic || false,
+            corrosive: result.ghs_info.corrosive || false
+          });
+        }
+      } else {
+        setParseError(result.error || "Failed to parse PDF");
+        setSaveStatus('error');
+      }
+    } catch (err) {
+      console.error("Error parsing PDF:", err);
+      setParseError(err.message || "Failed to parse PDF");
+      setSaveStatus('error');
+    } finally {
+      setParsing(false);
+      
+      // Auto-hide success message after 5 seconds
+      if (saveStatus === 'success') {
+        setTimeout(() => setSaveStatus(null), 5000);
+      }
+    }
+  };
+
   // Format date for display
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -347,6 +405,16 @@ const SDSViewer = () => {
                     >
                       {downloadStatus === 'downloading' ? 'Downloading...' : 'Download'}
                     </Button>
+                    <Button 
+                      variant="contained" 
+                      color="success" 
+                      size="small"
+                      onClick={parsePDF} 
+                      disabled={parsing || !sdsData?.file_path}
+                      startIcon={parsing ? <CircularProgress size={16} color="inherit" /> : null}
+                    >
+                      {parsing ? "Parsing PDF..." : "Extract GHS Data"}
+                    </Button>
                   </Stack>
                 </Box>
               </Box>
@@ -459,6 +527,12 @@ const SDSViewer = () => {
               </Button>
               <Snackbar open={saveStatus === 'success'} autoHideDuration={2000} onClose={() => setSaveStatus(null)}>
                 <MuiAlert elevation={6} variant="filled" severity="success">GHS info saved!</MuiAlert>
+              </Snackbar>
+              <Snackbar open={parseError} autoHideDuration={2000} onClose={() => setParseError(null)}>
+                <MuiAlert elevation={6} variant="filled" severity="error">Error parsing PDF!</MuiAlert>
+              </Snackbar>
+              <Snackbar open={parseSuccess} autoHideDuration={2000} onClose={() => setParseSuccess(false)}>
+                <MuiAlert elevation={6} variant="filled" severity="success">PDF parsed successfully!</MuiAlert>
               </Snackbar>
             </CardContent>
           </Card>

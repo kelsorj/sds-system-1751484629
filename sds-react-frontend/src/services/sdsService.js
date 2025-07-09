@@ -55,7 +55,7 @@ export const sdsService = {
   
   // Extract GHS info from an existing PDF file
   extractGhsFromPdf: async (casNumber, filePath) => {
-    const response = await api.post(`/sds/${casNumber}/extract-ghs`, { file_path: filePath });
+    const response = await api.post(`/sds/parse/${casNumber}`, { filePath });
     return response.data;
   },
   
