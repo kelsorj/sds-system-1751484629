@@ -49,6 +49,12 @@ export const sdsService = {
     }
   },
   
+  // Get GHS classification data for a chemical by CAS number
+  getGhsData: async (casNumber) => {
+    const response = await api.get(`/sds/${casNumber}/ghs`);
+    return response.data;
+  },
+  
   // Process batch import of chemicals with SDS downloads
   importCsv: async (file, downloadSds = true) => {
     const formData = new FormData();

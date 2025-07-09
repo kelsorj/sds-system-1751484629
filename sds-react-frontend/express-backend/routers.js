@@ -563,22 +563,27 @@ sdsRouter.put('/ghs/:cas_number', async (req, res) => {
     console.log('GHS data received:', ghsData);
     
     // Get the chemical ID from the CAS number
+    console.log('Looking up chemical ID for CAS:', cas_number);
     const chemicalResult = await db.query(
       'SELECT id FROM chemicals WHERE cas_number = $1',
       [cas_number]
     );
     
     if (chemicalResult.rows.length === 0) {
+      console.log('Chemical not found for CAS:', cas_number);
       return res.status(404).json({ success: false, error: 'Chemical not found' });
     }
     
     const chemicalId = chemicalResult.rows[0].id;
+    console.log('Found chemical ID:', chemicalId);
     
     // Delete any existing GHS classifications for this chemical to avoid duplicates
-    await db.query(
+    console.log('Deleting existing GHS classifications for chemical ID:', chemicalId);
+    const deleteResult = await db.query(
       'DELETE FROM ghs_classifications WHERE chemical_id = $1',
       [chemicalId]
     );
+    console.log('Deleted', deleteResult.rowCount, 'existing GHS records');
     
     // Prepare arrays for JSONB columns
     const hazardStatementsArray = Array.isArray(ghsData.hazard_statements) ? ghsData.hazard_statements : [];
@@ -586,7 +591,38 @@ sdsRouter.put('/ghs/:cas_number', async (req, res) => {
     const pictogramsArray = Array.isArray(ghsData.pictograms) ? ghsData.pictograms : [];
     const hazardClassesArray = Array.isArray(ghsData.hazard_classes) ? ghsData.hazard_classes : [];
     
+    console.log('Prepared arrays:');
+    console.log('- Hazard statements:', hazardStatementsArray.length, 'items');
+    console.log('- Precautionary statements:', precautionaryStatementsArray.length, 'items');
+    console.log('- Pictograms:', pictogramsArray.length, 'items');
+    console.log('- Hazard classes:', hazardClassesArray.length, 'items');
+    
     // Insert new GHS classification record
+    console.log('Inserting GHS classification record with parameters:');
+    const insertParams = [
+      chemicalId,
+      'manual_entry',
+      ghsData.signal_word || null,
+      ghsData.flammable || false,
+      ghsData.explosive || false,
+      ghsData.oxidizing || false,
+      ghsData.toxic || false,
+      ghsData.corrosive || false,
+      ghsData.acute_toxicity || null,
+      ghsData.serious_eye_damage || null,
+      ghsData.skin_corrosion || null,
+      ghsData.reproductive_toxicity || null,
+      ghsData.carcinogenicity || null,
+      ghsData.germ_cell_mutagenicity || null,
+      ghsData.respiratory_sensitization || null,
+      ghsData.aquatic_toxicity || null,
+      JSON.stringify(hazardStatementsArray),
+      JSON.stringify(precautionaryStatementsArray),
+      JSON.stringify(pictogramsArray),
+      JSON.stringify(hazardClassesArray)
+    ];
+    console.log('Insert parameters:', insertParams);
+    
     const ghsInsertResult = await db.query(
       `INSERT INTO ghs_classifications (
         chemical_id,
@@ -614,34 +650,17 @@ sdsRouter.put('/ghs/:cas_number', async (req, res) => {
         $1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
       )
       RETURNING id`,
-      [
-        chemicalId,
-        'manual_entry',
-        ghsData.signal_word || null,
-        ghsData.flammable || false,
-        ghsData.explosive || false,
-        ghsData.oxidizing || false,
-        ghsData.toxic || false,
-        ghsData.corrosive || false,
-        ghsData.acute_toxicity || null,
-        ghsData.serious_eye_damage || null,
-        ghsData.skin_corrosion || null,
-        ghsData.reproductive_toxicity || null,
-        ghsData.carcinogenicity || null,
-        ghsData.germ_cell_mutagenicity || null,
-        ghsData.respiratory_sensitization || null,
-        ghsData.aquatic_toxicity || null,
-        JSON.stringify(hazardStatementsArray),
-        JSON.stringify(precautionaryStatementsArray),
-        JSON.stringify(pictogramsArray),
-        JSON.stringify(hazardClassesArray)
-      ]
+      insertParams
     );
     
+    console.log('GHS insert result:', ghsInsertResult.rows);
+    
     const ghsId = ghsInsertResult.rows[0].id;
+    console.log('Created GHS classification with ID:', ghsId);
     
     // Also update the chemicals table with basic GHS info that exists in the schema
-    await db.query(
+    console.log('Updating chemicals table with basic GHS info');
+    const chemicalsUpdateResult = await db.query(
       `UPDATE chemicals SET 
         signal_word = $1,
         hazard_statement = $2,
@@ -654,7 +673,9 @@ sdsRouter.put('/ghs/:cas_number', async (req, res) => {
         chemicalId
       ]
     );
+    console.log('Updated', chemicalsUpdateResult.rowCount, 'chemical records');
     
+    console.log('GHS update completed successfully');
     res.json({
       success: true,
       message: 'GHS information updated successfully',

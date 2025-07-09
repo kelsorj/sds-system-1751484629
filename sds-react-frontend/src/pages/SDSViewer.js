@@ -148,6 +148,20 @@ const SDSViewer = () => {
     );
   }
 
+  // Helper function to parse array data from various formats
+  const parseArrayData = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (typeof data === 'string') {
+      try {
+        return JSON.parse(data);
+      } catch (e) {
+        return data.replace(/[\[\]'"]/g, '').split(',').map(item => item.trim()).filter(item => item);
+      }
+    }
+    return [];
+  };
+
   // Parse GHS data
   const hazardStatements = sdsData?.ghs_data?.hazard_statements ? parseArrayData(sdsData.ghs_data.hazard_statements) : [];
   const precautionaryStatements = sdsData?.ghs_data?.precautionary_statements ? parseArrayData(sdsData.ghs_data.precautionary_statements) : [];
@@ -164,6 +178,22 @@ const SDSViewer = () => {
       setSaveStatus('saving');
       await sdsService.updateGhsInfo(casNumber, ghsData);
       setSaveStatus('success');
+      
+      // Refresh the GHS data to show updated values
+      try {
+        const ghsResponse = await sdsService.getGhsData(casNumber);
+        if (ghsResponse && ghsResponse.ghs_classifications && ghsResponse.ghs_classifications.length > 0) {
+          const latestGhs = ghsResponse.ghs_classifications[0]; // Get the most recent classification
+          // Update the sdsData with the new GHS information
+          setSdsData(prevData => ({
+            ...prevData,
+            ghs_data: latestGhs
+          }));
+        }
+      } catch (refreshErr) {
+        console.error('Error refreshing GHS data after save:', refreshErr);
+      }
+      
       setTimeout(() => setSaveStatus(null), 2000);
     } catch (error) {
       console.error('Error saving GHS data:', error);
@@ -280,20 +310,6 @@ const SDSViewer = () => {
     }
   };
   
-  // Helper function to parse array/string data
-  const parseArrayData = (data) => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
-    if (typeof data === 'string') {
-      try {
-        return JSON.parse(data);
-      } catch (e) {
-        return data.replace(/[\[\]'"]/g, '').split(',').map(item => item.trim()).filter(item => item);
-      }
-    }
-    return [];
-  };
-
   // Render content
   return (
     <Box>
