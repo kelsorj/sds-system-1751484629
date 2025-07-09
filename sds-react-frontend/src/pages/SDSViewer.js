@@ -189,8 +189,14 @@ const SDSViewer = () => {
       // Use attachment disposition for download
       const downloadUrl = `/api/sds/download/${encodedFilePath}?disposition=attachment`;
       
-      // Open the download URL in a new tab
-      window.open(downloadUrl, '_blank');
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = ''; // This will use the filename from Content-Disposition header
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       setTimeout(() => {
         setDownloadStatus('success');
