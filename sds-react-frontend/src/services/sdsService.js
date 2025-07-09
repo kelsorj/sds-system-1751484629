@@ -26,17 +26,27 @@ export const sdsService = {
     return response.data;
   },
   
-  // Upload an SDS file for a CAS number
-  uploadSds: async (casNumber, file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const response = await api.post(`/sds/${casNumber}/upload`, formData, {
+  // Upload an SDS file (expects FormData with file and cas_number)
+  uploadSds: async (formData) => {
+    const response = await api.post('/sds/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     });
     return response.data;
+  },
+  
+  // Get SDS data for a chemical by CAS number
+  getSdsData: async (casNumber) => {
+    try {
+      const response = await api.get(`/sds/${casNumber}`);
+      return response.data;
+    } catch (error) {
+      if (error.response && error.response.status === 404) {
+        return null; // No SDS found for this CAS number
+      }
+      throw error;
+    }
   },
   
   // Process batch import of chemicals with SDS downloads
@@ -71,3 +81,5 @@ export const sdsService = {
     return response.data;
   }
 };
+
+export default sdsService;

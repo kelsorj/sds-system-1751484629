@@ -22,7 +22,7 @@ const Register = lazy(() => import('./pages/Register'));
 const ChemicalDetails = lazy(() => import('./pages/ChemicalDetails'));
 const ChemicalForm = lazy(() => import('./pages/ChemicalForm'));
 const SDSViewer = lazy(() => import('./pages/SDSViewer'));
-const Search = lazy(() => import('./pages/Search'));
+const BulkUpload = lazy(() => import('./pages/BulkUpload'));
 const Settings = lazy(() => import('./pages/Settings'));
 
 // Create theme
@@ -146,10 +146,10 @@ function App() {
                 </ProtectedRoute>
               } />
               
-              <Route path="/search" element={
+              <Route path="/bulk-upload" element={
                 <ProtectedRoute>
                   <AppLayout>
-                    <Search />
+                    <BulkUpload />
                   </AppLayout>
                 </ProtectedRoute>
               } />

@@ -17,7 +17,7 @@ import {
   Science as ScienceIcon,
   Article as ArticleIcon,
   CloudUpload as CloudUploadIcon,
-  Search as SearchIcon,
+  CloudUpload as BulkUploadIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
 
@@ -28,7 +28,7 @@ const navItems = [
   { name: 'Chemical Inventory', icon: <ScienceIcon />, path: '/chemicals' },
   { name: 'SDS Documents', icon: <ArticleIcon />, path: '/sds' },
   { name: 'Import Data', icon: <CloudUploadIcon />, path: '/import' },
-  { name: 'Search', icon: <SearchIcon />, path: '/search' },
+  { name: 'Bulk Upload', icon: <BulkUploadIcon />, path: '/bulk-upload' },
   { name: 'Settings', icon: <SettingsIcon />, path: '/settings' }
 ];
 
