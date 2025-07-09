@@ -61,7 +61,13 @@ export const sdsService = {
   
   // Get GHS classifications for a chemical
   getGhsClassifications: async (casNumber) => {
-    const response = await api.get(`/sds/${casNumber}/ghs`);
+    const response = await api.get(`/sds/ghs/${casNumber}`);
     return response.data;
   },
+  
+  // Update GHS classification data manually
+  updateGhsInfo: async (casNumber, ghsData) => {
+    const response = await api.put(`/sds/ghs/${casNumber}`, ghsData);
+    return response.data;
+  }
 };

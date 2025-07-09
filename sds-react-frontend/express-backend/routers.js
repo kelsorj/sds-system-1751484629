@@ -553,6 +553,119 @@ sdsRouter.post('/parse/:cas_number', async (req, res) => {
   }
 });
 
+// PUT /api/sds/ghs/:cas_number - Update GHS classification data manually
+sdsRouter.put('/ghs/:cas_number', async (req, res) => {
+  try {
+    const { cas_number } = req.params;
+    const ghsData = req.body;
+    
+    console.log('Updating GHS data for CAS:', cas_number);
+    console.log('GHS data received:', ghsData);
+    
+    // Get the chemical ID from the CAS number
+    const chemicalResult = await db.query(
+      'SELECT id FROM chemicals WHERE cas_number = $1',
+      [cas_number]
+    );
+    
+    if (chemicalResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Chemical not found' });
+    }
+    
+    const chemicalId = chemicalResult.rows[0].id;
+    
+    // Delete any existing GHS classifications for this chemical to avoid duplicates
+    await db.query(
+      'DELETE FROM ghs_classifications WHERE chemical_id = $1',
+      [chemicalId]
+    );
+    
+    // Prepare arrays for JSONB columns
+    const hazardStatementsArray = Array.isArray(ghsData.hazard_statements) ? ghsData.hazard_statements : [];
+    const precautionaryStatementsArray = Array.isArray(ghsData.precautionary_statements) ? ghsData.precautionary_statements : [];
+    const pictogramsArray = Array.isArray(ghsData.pictograms) ? ghsData.pictograms : [];
+    const hazardClassesArray = Array.isArray(ghsData.hazard_classes) ? ghsData.hazard_classes : [];
+    
+    // Insert new GHS classification record
+    const ghsInsertResult = await db.query(
+      `INSERT INTO ghs_classifications (
+        chemical_id,
+        classification_source,
+        signal_word,
+        classified_at,
+        flammable,
+        explosive,
+        oxidizing,
+        toxic,
+        corrosive,
+        acute_toxicity,
+        serious_eye_damage,
+        skin_corrosion,
+        reproductive_toxicity,
+        carcinogenicity,
+        germ_cell_mutagenicity,
+        respiratory_sensitization,
+        aquatic_toxicity,
+        hazard_statements,
+        precautionary_statements,
+        pictograms,
+        hazard_classes
+      ) VALUES (
+        $1, $2, $3, NOW(), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+      )
+      RETURNING id`,
+      [
+        chemicalId,
+        'manual_entry',
+        ghsData.signal_word || null,
+        ghsData.flammable || false,
+        ghsData.explosive || false,
+        ghsData.oxidizing || false,
+        ghsData.toxic || false,
+        ghsData.corrosive || false,
+        ghsData.acute_toxicity || null,
+        ghsData.serious_eye_damage || null,
+        ghsData.skin_corrosion || null,
+        ghsData.reproductive_toxicity || null,
+        ghsData.carcinogenicity || null,
+        ghsData.germ_cell_mutagenicity || null,
+        ghsData.respiratory_sensitization || null,
+        ghsData.aquatic_toxicity || null,
+        JSON.stringify(hazardStatementsArray),
+        JSON.stringify(precautionaryStatementsArray),
+        JSON.stringify(pictogramsArray),
+        JSON.stringify(hazardClassesArray)
+      ]
+    );
+    
+    const ghsId = ghsInsertResult.rows[0].id;
+    
+    // Also update the chemicals table with basic GHS info that exists in the schema
+    await db.query(
+      `UPDATE chemicals SET 
+        signal_word = $1,
+        hazard_statement = $2,
+        precautionary_statement = $3
+      WHERE id = $4`,
+      [
+        ghsData.signal_word || null,
+        hazardStatementsArray.join('; ') || null,
+        precautionaryStatementsArray.join('; ') || null,
+        chemicalId
+      ]
+    );
+    
+    res.json({
+      success: true,
+      message: 'GHS information updated successfully',
+      ghsClassificationId: ghsId
+    });
+  } catch (err) {
+    console.error('Error updating GHS data:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Download or view an SDS file by encoded path
 sdsRouter.get('/download/:encodedFilePath', async (req, res) => {
   try {

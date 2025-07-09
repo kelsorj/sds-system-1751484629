@@ -160,13 +160,16 @@ const SDSViewer = () => {
 
   // Save handler (stub)
   const saveGhsData = async () => {
-    // TODO: Replace with real API call
-    setSaveStatus('saving');
-    setTimeout(() => {
+    try {
+      setSaveStatus('saving');
+      await sdsService.updateGhsInfo(casNumber, ghsData);
       setSaveStatus('success');
       setTimeout(() => setSaveStatus(null), 2000);
-    }, 1000);
-    // Example: await sdsService.updateGhsInfo(casNumber, ghsData);
+    } catch (error) {
+      console.error('Error saving GHS data:', error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
   };
 
   // Download SDS PDF
@@ -508,10 +511,20 @@ const SDSViewer = () => {
                 onChange={e => handleGhsChange('signal_word', e.target.value)}
                 sx={{ mb: 2, width: '100%' }}
               />
-              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              {/* Boolean hazard flags */}
+              <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Hazard Classifications</Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
                 <FormControlLabel
                   control={<Checkbox checked={ghsData.flammable} onChange={e => handleGhsChange('flammable', e.target.checked)} />}
                   label="Flammable"
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={ghsData.explosive} onChange={e => handleGhsChange('explosive', e.target.checked)} />}
+                  label="Explosive"
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={ghsData.oxidizing} onChange={e => handleGhsChange('oxidizing', e.target.checked)} />}
+                  label="Oxidizing"
                 />
                 <FormControlLabel
                   control={<Checkbox checked={ghsData.toxic} onChange={e => handleGhsChange('toxic', e.target.checked)} />}
@@ -522,11 +535,92 @@ const SDSViewer = () => {
                   label="Corrosive"
                 />
               </Box>
+              
+              {/* Text fields for specific toxicity types */}
+              <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Specific Toxicity Information</Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 2, mb: 2 }}>
+                <TextField
+                  label="Acute Toxicity"
+                  variant="outlined"
+                  value={ghsData.acute_toxicity || ''}
+                  onChange={e => handleGhsChange('acute_toxicity', e.target.value)}
+                  placeholder="e.g., Category 4, Oral"
+                />
+                <TextField
+                  label="Serious Eye Damage"
+                  variant="outlined"
+                  value={ghsData.serious_eye_damage || ''}
+                  onChange={e => handleGhsChange('serious_eye_damage', e.target.value)}
+                  placeholder="e.g., Category 1"
+                />
+                <TextField
+                  label="Skin Corrosion"
+                  variant="outlined"
+                  value={ghsData.skin_corrosion || ''}
+                  onChange={e => handleGhsChange('skin_corrosion', e.target.value)}
+                  placeholder="e.g., Category 1B"
+                />
+                <TextField
+                  label="Reproductive Toxicity"
+                  variant="outlined"
+                  value={ghsData.reproductive_toxicity || ''}
+                  onChange={e => handleGhsChange('reproductive_toxicity', e.target.value)}
+                  placeholder="e.g., Category 1A"
+                />
+                <TextField
+                  label="Carcinogenicity"
+                  variant="outlined"
+                  value={ghsData.carcinogenicity || ''}
+                  onChange={e => handleGhsChange('carcinogenicity', e.target.value)}
+                  placeholder="e.g., Category 1A"
+                />
+                <TextField
+                  label="Germ Cell Mutagenicity"
+                  variant="outlined"
+                  value={ghsData.germ_cell_mutagenicity || ''}
+                  onChange={e => handleGhsChange('germ_cell_mutagenicity', e.target.value)}
+                  placeholder="e.g., Category 1B"
+                />
+                <TextField
+                  label="Respiratory Sensitization"
+                  variant="outlined"
+                  value={ghsData.respiratory_sensitization || ''}
+                  onChange={e => handleGhsChange('respiratory_sensitization', e.target.value)}
+                  placeholder="e.g., Category 1"
+                />
+                <TextField
+                  label="Aquatic Toxicity"
+                  variant="outlined"
+                  value={ghsData.aquatic_toxicity || ''}
+                  onChange={e => handleGhsChange('aquatic_toxicity', e.target.value)}
+                  placeholder="e.g., Acute Category 1"
+                />
+              </Box>
+              
+              {/* Hazard Classes array field */}
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={ghsData.hazard_classes || []}
+                onChange={(_, value) => handleGhsChange('hazard_classes', value)}
+                renderTags={(value, getTagProps) =>
+                  value.map((option, index) => (
+                    <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
+                  ))
+                }
+                renderInput={(params) => (
+                  <TextField {...params} variant="outlined" label="Hazard Classes" placeholder="Add hazard class" sx={{ mb: 2 }} />
+                )}
+              />
               <Button variant="contained" color="primary" onClick={saveGhsData} disabled={saveStatus === 'saving'}>
                 {saveStatus === 'saving' ? 'Saving...' : 'Save GHS Info'}
               </Button>
               <Snackbar open={saveStatus === 'success'} autoHideDuration={2000} onClose={() => setSaveStatus(null)}>
                 <MuiAlert elevation={6} variant="filled" severity="success">GHS info saved!</MuiAlert>
+              </Snackbar>
+              <Snackbar open={saveStatus === 'error'} autoHideDuration={3000} onClose={() => setSaveStatus(null)}>
+                <MuiAlert elevation={6} variant="filled" severity="error">Error saving GHS info!</MuiAlert>
               </Snackbar>
               <Snackbar open={parseError} autoHideDuration={2000} onClose={() => setParseError(null)}>
                 <MuiAlert elevation={6} variant="filled" severity="error">Error parsing PDF!</MuiAlert>
