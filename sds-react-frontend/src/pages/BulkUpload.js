@@ -93,21 +93,26 @@ const BulkUpload = () => {
       ));
 
       // Check if CAS number already has an SDS
+      console.log(`Checking for existing SDS for CAS: ${fileItem.casNumber}`);
       const existingData = await sdsService.getSdsData(fileItem.casNumber);
+      console.log(`Existing data for CAS ${fileItem.casNumber}:`, existingData);
       
       if (existingData && existingData.sds_files && existingData.sds_files.length > 0) {
         // CAS already has SDS - skip upload
+        console.log(`Skipping CAS ${fileItem.casNumber} - found ${existingData.sds_files.length} existing SDS files:`, existingData.sds_files);
         setUploadQueue(prev => prev.map(item => 
           item.id === fileItem.id 
             ? { 
                 ...item, 
                 status: 'skipped', 
                 progress: 100,
-                error: 'SDS already exists for this CAS number'
+                error: `SDS already exists for this CAS number (${existingData.sds_files.length} files found)`
               }
             : item
         ));
-        return { status: 'skipped', casNumber: fileItem.casNumber, message: 'Already exists' };
+        return { status: 'skipped', casNumber: fileItem.casNumber, message: `Already exists (${existingData.sds_files.length} files)` };
+      } else {
+        console.log(`No existing SDS found for CAS ${fileItem.casNumber} - proceeding with upload`);
       }
 
       // Update progress
