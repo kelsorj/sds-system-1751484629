@@ -1,12 +1,12 @@
 Failed Downloads Summary
-Script started at: 2025-07-22 12:54:41
-Total CAS numbers to process: 31
+Script started at: 2025-07-22 14:27:41
+Total CAS numbers to process: 21
 
 Failed downloads:
 
 
-Script completed at: 2025-07-22 13:03:07
-Total CAS numbers processed: 31
+Script completed at: 2025-07-22 14:34:25
+Total CAS numbers processed: 21
 Failed downloads: 0
-Successful downloads: 8
+Successful downloads: 6
 Success rate: 100.0%

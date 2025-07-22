@@ -61,7 +61,7 @@ def clean(text):
 CASlist = list()
 reg_ids = dict()  # Dictionary to map CAS to REG_FORMATTED_ID
 
-# Read from CSV file instead of text file
+# Read from CSV file to get CAS #s
 with open('dotmatics-export.csv', 'r') as csvfile:
     reader = csv.DictReader(csvfile)
     print(f"CSV columns: {reader.fieldnames}")

@@ -456,15 +456,6 @@ const SDSViewer = () => {
                     >
                       {isFullscreen ? <FullscreenExit /> : <Fullscreen />}
                     </IconButton>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<Download />}
-                      onClick={downloadSds}
-                      disabled={downloadStatus === 'downloading'}
-                    >
-                      {downloadStatus === 'downloading' ? 'Downloading...' : 'Download'}
-                    </Button>
                     <Button 
                       variant="contained" 
                       color="success" 
@@ -499,15 +490,6 @@ const SDSViewer = () => {
               </Typography>
             )}
           </Paper>
-          <Button
-            variant="contained"
-            startIcon={downloadStatus === 'loading' ? <CircularProgress size={20} color="inherit" /> : <GetAppIcon />}
-            sx={{ mt: 1 }}
-            onClick={downloadSds}
-            disabled={downloadStatus === 'loading' || !sdsData?.file_path}
-          >
-            Download PDF
-          </Button>
         </Box>
         {/* GHS Info Section (editable) */}
         <Box sx={{ width: '100%', mt: 3 }}>
