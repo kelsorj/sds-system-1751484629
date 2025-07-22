@@ -350,41 +350,101 @@ class SDSManager:
             return {"success": False, "error": str(e)}
 
     def extract_ghs_from_pdf(self, file_path: str) -> Dict[str, Any]:
-        """Extract GHS info from a PDF using PyPDF2 (improved extraction)"""
+        """Extract GHS info from a PDF using SDSParser with fallback to PyPDF2"""
         ghs_info = {
             'signal_word': None,
             'hazard_statements': [],
             'precautionary_statements': [],
             'pictograms': [],
-            'hazard_classes': []
+            'hazard_classes': [],
+            'source': 'sdsparser'  # Track which method was used
         }
+        
         try:
+            # First try with SDSParser
+            from sdsparser import parse_sds
             import re
+            
+            try:
+                # Parse the SDS file using SDSParser
+                sds_data = parse_sds(file_path)
+                
+                # Extract signal word
+                if hasattr(sds_data, 'hazard_statements') and sds_data.hazard_statements:
+                    if any('Danger' in str(h) for h in sds_data.hazard_statements):
+                        ghs_info['signal_word'] = 'Danger'
+                    elif any('Warning' in str(h) for h in sds_data.hazard_statements):
+                        ghs_info['signal_word'] = 'Warning'
+                
+                # Extract hazard statements (H-codes)
+                if hasattr(sds_data, 'hazard_statements'):
+                    h_statements = []
+                    for stmt in sds_data.hazard_statements:
+                        # Extract H-codes from the text
+                        h_codes = re.findall(r'(H[2-4][0-9]{2}[^.]*\.?)', str(stmt))
+                        h_statements.extend(h_codes)
+                    ghs_info['hazard_statements'] = list(sorted(set(h_statements)))
+                
+                # Extract precautionary statements (P-codes)
+                if hasattr(sds_data, 'precautionary_statements'):
+                    p_statements = []
+                    for stmt in sds_data.precautionary_statements:
+                        # Extract P-codes from the text
+                        p_codes = re.findall(r'(P[1-9][0-9]{2}[^.]*\.?)', str(stmt))
+                        p_statements.extend(p_codes)
+                    ghs_info['precautionary_statements'] = list(sorted(set(p_statements)))
+                
+                # Extract pictograms
+                if hasattr(sds_data, 'pictograms'):
+                    ghs_info['pictograms'] = [str(p) for p in sds_data.pictograms]
+                
+                # Extract hazard classes if available
+                if hasattr(sds_data, 'hazard_classifications'):
+                    ghs_info['hazard_classes'] = [str(hc) for hc in sds_data.hazard_classifications]
+                
+                # If we got good data from SDSParser, return it
+                if ghs_info['hazard_statements'] or ghs_info['pictograms']:
+                    return ghs_info
+                    
+            except Exception as sds_error:
+                print(f"SDSParser error, falling back to PyPDF2: {sds_error}")
+                ghs_info['source'] = 'pypdf2_fallback'
+                ghs_info['parse_error'] = str(sds_error)
+            
+            # Fallback to PyPDF2 if SDSParser fails or returns no data
             with open(file_path, 'rb') as f:
                 reader = PyPDF2.PdfReader(f)
                 text = "\n".join(page.extract_text() or '' for page in reader.pages)
+            
             # Normalize whitespace
             text = re.sub(r'\s+', ' ', text)
+            
             # Signal word
             match = re.search(r'Signal word[:\s]+(Danger|Warning)', text, re.IGNORECASE)
             if match:
                 ghs_info['signal_word'] = match.group(1).capitalize()
+            
             # Hazard statements (H-codes) - H200-H499 range
-            h_statements = re.findall(r'(H[2-4][0-9]{2}[^.]*\.)', text)
+            h_statements = re.findall(r'(H[2-4][0-9]{2}[^.]*\.?)', text)
             h_statements = [h.strip() for h in h_statements]
             ghs_info['hazard_statements'] = list(sorted(set(h_statements)))
+            
             # Precautionary statements (P-codes)
-            p_statements = re.findall(r'(P[1-9][0-9]{2}[^.]*\.)', text)
+            p_statements = re.findall(r'(P[1-9][0-9]{2}[^.]*\.?)', text)
             p_statements = [p.strip() for p in p_statements]
             ghs_info['precautionary_statements'] = list(sorted(set(p_statements)))
+            
             # GHS pictograms (e.g., GHS02, GHS07, GHS08)
             pictograms = re.findall(r'(GHS[0-9]{2})', text)
             ghs_info['pictograms'] = list(sorted(set(pictograms)))
+            
             # Hazard classes (e.g., Flam. Liq. 2, Carc. 1A, Eye Irrit. 2)
             hazard_classes = re.findall(r'([A-Z][a-zA-Z\. ]+\s[1-3][A-B]?)', text)
             # Deduplicate and clean
             hazard_classes = [hc.strip() for hc in hazard_classes if len(hc.strip()) > 3]
             ghs_info['hazard_classes'] = list(sorted(set(hazard_classes)))
+            
             return ghs_info
+            
         except Exception as e:
-            return {"error": str(e)} 
+            return {"error": str(e), "source": "error"} 

@@ -184,18 +184,6 @@ const SDSDocuments = () => {
     }
   };
 
-  const triggerSdsDownload = async (casNumber) => {
-    try {
-      // In a real app, you would call the API to trigger an SDS download from sources
-      // await sdsService.triggerSdsDownload(casNumber);
-      
-      alert(`Requesting new SDS download for ${casNumber} from external sources...`);
-    } catch (error) {
-      console.error('Error triggering SDS download:', error);
-      alert('Failed to request SDS download. Please try again.');
-    }
-  };
-
   // Filter SDS documents
   const filteredSdsDocuments = sdsDocuments
     .filter((doc) => {
@@ -325,14 +313,6 @@ const SDSDocuments = () => {
                               to={`/sds/${doc.cas_number}`}
                             >
                               <VisibilityIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Request SDS Download">
-                            <IconButton 
-                              color="primary"
-                              onClick={() => triggerSdsDownload(doc.cas_number)}
-                            >
-                              <CloudDownloadIcon />
                             </IconButton>
                           </Tooltip>
                         </TableCell>
