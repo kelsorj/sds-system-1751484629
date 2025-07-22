@@ -1878,6 +1878,41 @@ bulkImportRouter.get('/template', (req, res) => {
   });
 });
 
+// Serve GHS pictogram images
+sdsRouter.get('/ghspics/:filename', (req, res) => {
+  const { filename } = req.params;
+  const ghsPicsPath = path.join(__dirname, 'ghspics', filename);
+  
+  // Check if file exists
+  if (!fs.existsSync(ghsPicsPath)) {
+    return res.status(404).json({ error: 'GHS pictogram image not found' });
+  }
+  
+  // Set appropriate headers for image serving
+  const ext = path.extname(filename).toLowerCase();
+  let contentType = 'image/png'; // default
+  
+  if (ext === '.jpg' || ext === '.jpeg') {
+    contentType = 'image/jpeg';
+  } else if (ext === '.gif') {
+    contentType = 'image/gif';
+  } else if (ext === '.svg') {
+    contentType = 'image/svg+xml';
+  }
+  
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+  
+  // Stream the file
+  const fileStream = fs.createReadStream(ghsPicsPath);
+  fileStream.pipe(res);
+  
+  fileStream.on('error', (err) => {
+    console.error('Error serving GHS pictogram:', err);
+    res.status(500).json({ error: 'Error serving image' });
+  });
+});
+
 module.exports = {
   chemicalsRouter,
   sdsRouter,

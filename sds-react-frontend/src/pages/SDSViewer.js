@@ -5,6 +5,8 @@ import { GetApp as GetAppIcon, Error as ErrorIcon, CheckCircle as CheckCircleIco
 import { sdsService } from '../services/sdsService';
 import { chemicalService } from '../services/chemicalService';
 import MuiAlert from '@mui/material/Alert';
+import { GhsPictogramDisplay } from '../components/GhsPictogramDisplay';
+import { getAvailablePictograms } from '../utils/ghsPictogramMapping';
 
 const SDSViewer = () => {
   const { casNumber } = useParams();
@@ -53,44 +55,74 @@ const SDSViewer = () => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
+      
       try {
-        // Fetch chemical details
-        const chemResponse = await chemicalService.getChemical(casNumber);
-        setChemicalData(chemResponse);
+        console.log('Fetching data for CAS:', casNumber);
         
-        // Fetch SDS files
-        const sdsResponse = await sdsService.getSdsFiles();
-        // Check if the response is properly structured
-        if (sdsResponse && sdsResponse.data && Array.isArray(sdsResponse.data)) {
-          const matchingSds = sdsResponse.data.find(sds => sds.cas_number === casNumber);
-          if (matchingSds) {
-            setSdsData(matchingSds);
-          } else {
-            // Try fetching specific SDS by cas number
-            try {
-              const specificSds = await sdsService.getSdsInfo(casNumber);
-              if (specificSds) {
-                setSdsData(specificSds);
-              } else {
-                setError('No SDS document found for this chemical');
-              }
-            } catch (sdsErr) {
-              console.error('Error fetching specific SDS:', sdsErr);
-              setError('No SDS document found for this chemical');
-            }
-          }
-        } else {
-          setError('Failed to retrieve SDS documents');
+        // Fetch chemical details first
+        let chemicalData = null;
+        try {
+          chemicalData = await chemicalService.getChemical(casNumber);
+          console.log('Chemical data fetched:', chemicalData);
+          setChemicalData(chemicalData);
+        } catch (chemErr) {
+          console.error('Error fetching chemical data:', chemErr);
+          // Continue even if chemical data fails - we might still have SDS data
         }
+        
+        // Try to fetch SDS data using the more direct approach first
+        let sdsData = null;
+        try {
+          sdsData = await sdsService.getSdsInfo(casNumber);
+          console.log('SDS data fetched directly:', sdsData);
+          if (sdsData) {
+            setSdsData(sdsData);
+          }
+        } catch (directSdsErr) {
+          console.log('Direct SDS fetch failed, trying list approach:', directSdsErr.message);
+          
+          // Fallback: fetch all SDS files and find matching one
+          try {
+            const sdsResponse = await sdsService.getSdsFiles();
+            console.log('All SDS files response:', sdsResponse);
+            
+            if (sdsResponse && sdsResponse.data && Array.isArray(sdsResponse.data)) {
+              const matchingSds = sdsResponse.data.find(sds => sds.cas_number === casNumber);
+              if (matchingSds) {
+                console.log('Found matching SDS in list:', matchingSds);
+                setSdsData(matchingSds);
+                sdsData = matchingSds;
+              }
+            }
+          } catch (listSdsErr) {
+            console.error('Error fetching SDS list:', listSdsErr);
+          }
+        }
+        
+        // If we have neither chemical nor SDS data, show an error
+        if (!chemicalData && !sdsData) {
+          setError('No data found for this chemical. The CAS number may not exist in the system.');
+        } else if (!sdsData) {
+          // We have chemical data but no SDS
+          console.log('Chemical found but no SDS document available');
+          // Don't set this as an error - just show the chemical data without SDS
+        }
+        
       } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Failed to load chemical and SDS data');
+        console.error('Unexpected error in fetchData:', err);
+        setError(`Failed to load data: ${err.message}`);
       } finally {
+        console.log('Setting loading to false');
         setLoading(false);
       }
     };
     
-    fetchData();
+    if (casNumber) {
+      fetchData();
+    } else {
+      setLoading(false);
+      setError('No CAS number provided');
+    }
   }, [casNumber]);
   
   // When SDS data loads, parse GHS info
@@ -481,21 +513,30 @@ const SDSViewer = () => {
               <Typography variant="h6" gutterBottom>
                 GHS Information (Editable)
               </Typography>
-              <Autocomplete
-                multiple
-                freeSolo
-                options={[]}
-                value={ghsData.pictograms}
-                onChange={(_, value) => handleGhsChange('pictograms', value)}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip variant="outlined" label={option} {...getTagProps({ index })} key={option} />
-                  ))
-                }
-                renderInput={(params) => (
-                  <TextField {...params} variant="outlined" label="Pictograms" placeholder="Add pictogram" sx={{ mb: 2 }} />
-                )}
-              />
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Pictograms
+                </Typography>
+                <GhsPictogramDisplay 
+                  pictograms={ghsData.pictograms}
+                  onPictogramDelete={(index) => {
+                    const newPictograms = [...ghsData.pictograms];
+                    newPictograms.splice(index, 1);
+                    handleGhsChange('pictograms', newPictograms);
+                  }}
+                  size="medium"
+                />
+                <Autocomplete
+                  multiple
+                  freeSolo
+                  options={getAvailablePictograms().map(p => p.code)}
+                  value={ghsData.pictograms}
+                  onChange={(_, value) => handleGhsChange('pictograms', value)}
+                  renderInput={(params) => (
+                    <TextField {...params} variant="outlined" label="Add/Edit Pictograms" placeholder="Type or select pictogram codes" size="small" sx={{ mt: 1 }} />
+                  )}
+                />
+              </Box>
               <Autocomplete
                 multiple
                 freeSolo

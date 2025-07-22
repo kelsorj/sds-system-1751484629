@@ -27,6 +27,7 @@ import {
   Visibility as VisibilityIcon
 } from '@mui/icons-material';
 import { sdsService } from '../services/sdsService';
+import { GhsPictogramImages } from '../components/GhsPictogramDisplay';
 
 // Utility function to safely format dates
 const formatDate = (dateString) => {
@@ -220,17 +221,12 @@ const SDSDocuments = () => {
     if (!pictograms || pictograms.length === 0) return 'None';
     
     return (
-      <Box sx={{ display: 'flex', gap: 0.5 }}>
-        {pictograms.map((pictogram, index) => (
-          <Chip 
-            key={index} 
-            label={pictogram} 
-            size="small" 
-            color="warning"
-            sx={{ fontWeight: 'bold' }}
-          />
-        ))}
-      </Box>
+      <GhsPictogramImages 
+        pictograms={pictograms}
+        size={24}
+        showTooltips={true}
+        maxImages={5}
+      />
     );
   };
 
