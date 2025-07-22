@@ -340,3 +340,4 @@ config/secrets.py
 *.bak
 *.backup
 *.old 
+sds-react-frontend/sigma/failed_downloads.txt

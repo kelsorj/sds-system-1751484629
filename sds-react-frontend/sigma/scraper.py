@@ -375,7 +375,7 @@ for CAS in CASlist:
                     pass
                 
                 # Find the direct PDF download link
-                sds_dir = "/Users/kelsorj/Library/CloudStorage/GoogleDrive-kelsorj@gmail.com/My Drive/Code/sigma/SDS"
+                sds_dir = "/react-apps/sds-millbrae/sds-company-system/sds-react-frontend/sigma/SDS"
                 if not os.path.exists(sds_dir):
                     os.makedirs(sds_dir)
                 reg_id = reg_ids.get(CAS, CAS)  # Use REG_FORMATTED_ID if available, otherwise use CAS
@@ -506,7 +506,9 @@ if successful_downloads:
                 cas_number = row.get(cas_col, '').strip()
                 # Only write rows for CAS numbers that weren't successfully downloaded
                 if cas_number not in successful_downloads:
-                    writer.writerow(row)
+                    # Filter the row to only include fields that exist in fieldnames
+                    filtered_row = {k: v for k, v in row.items() if k in fieldnames}
+                    writer.writerow(filtered_row)
     
     print(f"Updated CSV saved as 'dotmatics-export-remaining.csv'")
     print(f"Remaining CAS numbers: {len(CASlist) - len(successful_downloads)}")
