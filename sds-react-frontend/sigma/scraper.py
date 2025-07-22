@@ -15,6 +15,7 @@ Created on Sunday, July 6, 2025
 import re
 import os
 import sys
+import platform
 import time
 import pandas
 import urllib
@@ -24,6 +25,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 import requests
 import csv
 
@@ -175,48 +178,71 @@ for hcode in H2P:
 #==============================================================================
 
 # Start Chrome instance
-chromeOptions = webdriver.ChromeOptions()
+def get_chrome_options():
+    """Return Chrome options based on the operating system"""
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-extensions")
+    
+    # Platform-specific configurations
+    if sys.platform == 'darwin':  # macOS
+        chrome_options.binary_location = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    elif 'linux' in sys.platform.lower():  # Linux/CentOS
+        chrome_options.binary_location = '/usr/bin/google-chrome-stable'  # Default path for Google Chrome
+        # Alternative path for Chromium if needed:
+        # chrome_options.binary_location = '/usr/bin/chromium-browser'
+    
+    return chrome_options
 
-if "SDS" not in os.listdir():
-    os.mkdir("SDS")
+# Debug print for platform and Python version
+print(f"Platform: {sys.platform}, Python: {sys.version}")
+print(f"Current working directory: {os.getcwd()}")
 
-prefs = {"download.default_directory" : os.path.join(os.getcwd(),"SDS"),
-         "download.prompt_for_download" : False,
-         "download.directory_upgrade" : True,
-         "plugins.plugins_disabled" : ["Chrome PDF Viewer"]}
-chromeOptions.add_experimental_option("prefs",prefs)
-chromeOptions.add_argument("--disable-extensions")
+# Set up Chrome options
+chrome_options = get_chrome_options()
 
-# Debug print for platform
-print("sys.platform:", sys.platform)
+# Use webdriver-manager to handle ChromeDriver
+print("Setting up ChromeDriver with webdriver-manager...")
+service = Service(ChromeDriverManager().install())
 
-# Robust chromedriver selection
-if sys.platform == 'darwin':  # Mac OS
-    # Prefer Apple Silicon chromedriver if available
-    mac64_path = os.path.join(os.getcwd(),'chromedriver','mac64','chromedriver')
-    mac32_path = os.path.join(os.getcwd(),'chromedriver','mac32','chromedriver')
-    if os.path.exists(mac64_path):
-        chromedriver = mac64_path
-    elif os.path.exists(mac32_path):
-        chromedriver = mac32_path
-    else:
-        raise FileNotFoundError('No suitable chromedriver found for Mac.')
-elif sys.platform.startswith('linux'):
-    if sys.maxsize > 2**32: # 64-bit
-        chromedriver = os.path.join(os.getcwd(),'chromedriver','linux64','chromedriver')
-    else: # 32-bit
-        chromedriver = os.path.join(os.getcwd(),'chromedriver','linux32','chromedriver')
-    if not os.path.exists(chromedriver):
-        raise FileNotFoundError('No suitable chromedriver found for Linux.')
-else:
-    raise EnvironmentError('Unsupported platform for this script. Only Mac and Linux are supported.')
+# Initialize the Chrome WebDriver
+try:
+    # Set download preferences
+    if "SDS" not in os.listdir():
+        os.mkdir("SDS")
+    
+    # Set download directory based on OS
+    download_dir = os.path.join(os.getcwd(), "SDS")
+    prefs = {
+        "download.default_directory": download_dir,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "plugins.plugins_disabled": ["Chrome PDF Viewer"]
+    }
+    
+    # Add preferences to Chrome options
+    chrome_options.add_experimental_option("prefs", prefs)
+    
+    # Initialize the WebDriver
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    print("Chrome WebDriver initialized successfully")
+    print(f"Download directory set to: {download_dir}")
+    
+except Exception as e:
+    print(f"Error initializing Chrome WebDriver: {str(e)}")
+    print("Please ensure Chrome and ChromeDriver are properly installed and in the system PATH")
+    if 'linux' in sys.platform.lower():
+        print("On CentOS, run 'bash setup_centos.sh' to install dependencies")
+    elif sys.platform == 'darwin':
+        print("On macOS, ensure Chrome and ChromeDriver are installed via Homebrew or manually")
+    sys.exit(1)
 
-service = Service(executable_path=chromedriver)
-driver = webdriver.Chrome(service=service, options=chromeOptions)
-driver.set_window_position(-2000, 0)
-
-# Initialize
-chemicals=list()
+# Initialize the list to store chemical data
+chemicals = []
 CASdict = dict()
 badCAS = list()
 failed_downloads = []  # List to track failed downloads
@@ -276,16 +302,51 @@ for CAS in CASlist:
                 product_url = product_link.get_attribute('href')
                 print(f"    Product number: {product_number}, URL: {product_url}")
 
-                # Find the SDS button in this row
-                sds_button = row.find_element(By.XPATH, ".//button[contains(@data-testid, 'sds-')]")
-                print(f"      Found SDS button for product {product_number}. Clicking...")
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", sds_button)
-                time.sleep(0.5)
-                try:
-                    sds_button.click()
-                except Exception as e:
-                    print(f"        Normal click failed, trying JS click: {e}")
-                    driver.execute_script("arguments[0].click();", sds_button)
+                # Find the SDS button in this row - trying multiple selectors for robustness
+                sds_button = None
+                sds_selectors = [
+                    ".//button[contains(@data-testid, 'sds-')]",  # Original selector
+                    ".//button[contains(., 'SDS')]",  # Button with 'SDS' text
+                    ".//a[contains(., 'SDS')]",  # Link with 'SDS' text
+                    ".//*[contains(@class, 'sds') and (self::button or self::a)]",  # Class containing 'sds'
+                    ".//*[contains(translate(., 'SDS', 'sds'), 'sds') and (self::button or self::a)]"  # Case-insensitive SDS text
+                ]
+                
+                for selector in sds_selectors:
+                    try:
+                        sds_button = row.find_element(By.XPATH, selector)
+                        print(f"      Found SDS button with selector: {selector}")
+                        break
+                    except:
+                        continue
+                        
+                if not sds_button:
+                    print("      Could not find SDS button with any selector")
+                    continue
+                    
+                print(f"      Clicking SDS button for product {product_number}...")
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});", sds_button)
+                time.sleep(1)  # Give it time to scroll
+                
+                # Try multiple click methods if needed
+                click_success = False
+                for click_method in [
+                    lambda: sds_button.click(),  # Standard click
+                    lambda: driver.execute_script("arguments[0].click();", sds_button),  # JS click
+                    lambda: driver.execute_script("arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));", sds_button)  # Simulated event
+                ]:
+                    try:
+                        click_method()
+                        click_success = True
+                        print("      Click successful")
+                        time.sleep(2)  # Wait for any modal to appear
+                        break
+                    except Exception as e:
+                        print(f"      Click attempt failed: {str(e)[:100]}...")
+                        
+                if not click_success:
+                    print("      All click methods failed")
+                    continue
 
                 # Wait for the English SDS link in the modal
                 english_link = WebDriverWait(driver, 10).until(
