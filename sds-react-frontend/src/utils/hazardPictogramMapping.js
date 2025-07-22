@@ -94,15 +94,13 @@ export const getHazardStatementPictograms = (hazardStatement) => {
 
 // Get all pictograms for an array of hazard statements
 export const getAllHazardStatementPictograms = (hazardStatements) => {
-  if (!hazardStatements || !Array.isArray(hazardStatements)) {
-    return [];
-  }
+  if (!hazardStatements || !Array.isArray(hazardStatements)) return [];
   
-  const allPictograms = hazardStatements.flatMap(statement => 
-    getHazardStatementPictograms(statement)
-  );
+  const allPictograms = hazardStatements.flatMap(statement => {
+    return getHazardStatementPictograms(statement);
+  });
   
-  // Return unique pictograms
+  // Remove duplicates
   return [...new Set(allPictograms)];
 };
 

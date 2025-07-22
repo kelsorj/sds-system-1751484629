@@ -369,8 +369,8 @@ class SDSManager:
             match = re.search(r'Signal word[:\s]+(Danger|Warning)', text, re.IGNORECASE)
             if match:
                 ghs_info['signal_word'] = match.group(1).capitalize()
-            # Hazard statements (H-codes)
-            h_statements = re.findall(r'(H[2-3][0-9]{2}[^.]*\.)', text)
+            # Hazard statements (H-codes) - H200-H499 range
+            h_statements = re.findall(r'(H[2-4][0-9]{2}[^.]*\.)', text)
             h_statements = [h.strip() for h in h_statements]
             ghs_info['hazard_statements'] = list(sorted(set(h_statements)))
             # Precautionary statements (P-codes)

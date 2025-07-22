@@ -130,9 +130,11 @@ const SDSViewer = () => {
   useEffect(() => {
     if (sdsData && (sdsData.ghs_data || sdsData)) {
       const ghs = sdsData.ghs_data || sdsData;
+      const parsedHazardStatements = parseGhsField(ghs.hazard_statements);
+      
       setGhsData({
         pictograms: parseGhsField(ghs.pictograms),
-        hazard_statements: parseGhsField(ghs.hazard_statements),
+        hazard_statements: parsedHazardStatements,
         precautionary_statements: parseGhsField(ghs.precautionary_statements),
         signal_word: ghs.signal_word || '',
         flammable: !!ghs.flammable,
