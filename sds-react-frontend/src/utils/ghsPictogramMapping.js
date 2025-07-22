@@ -77,27 +77,17 @@ export const getAvailablePictograms = () => {
 
 // Get combined pictograms from both GHS codes and hazard statements
 export const getCombinedPictograms = (ghsPictograms = [], hazardStatements = []) => {
-  console.log('getCombinedPictograms Debug:');
-  console.log('- Input ghsPictograms:', ghsPictograms);
-  console.log('- Input hazardStatements:', hazardStatements);
-  
   // Get pictograms from explicit GHS codes
   const explicitPictograms = Array.isArray(ghsPictograms) ? ghsPictograms : [];
-  console.log('- explicitPictograms:', explicitPictograms);
   
   // Get pictograms derived from hazard statements
   const hazardDerivedPictograms = getAllHazardStatementPictograms(hazardStatements);
-  console.log('- hazardDerivedPictograms:', hazardDerivedPictograms);
   
   // Combine and deduplicate
   const allPictograms = [...explicitPictograms, ...hazardDerivedPictograms];
   const uniquePictograms = [...new Set(allPictograms)];
-  console.log('- uniquePictograms:', uniquePictograms);
   
-  const filteredPictograms = uniquePictograms.filter(p => p && getPictogramImage(p));
-  console.log('- filteredPictograms:', filteredPictograms);
-  
-  return filteredPictograms;
+  return uniquePictograms.filter(p => p && getPictogramImage(p));
 };
 
 // Get pictogram information with source indication

@@ -88,34 +88,22 @@ export const getHazardStatementPictograms = (hazardStatement) => {
   if (!hazardCodeMatch) return [];
   
   const hazardCode = hazardCodeMatch[1].toUpperCase();
-  console.log(`- Extracted hazard code: ${hazardCode} from statement: ${hazardStatement}`);
   
   return HAZARD_STATEMENT_PICTOGRAM_MAPPING[hazardCode] || [];
 };
 
 // Get all pictograms for an array of hazard statements
 export const getAllHazardStatementPictograms = (hazardStatements) => {
-  console.log('getAllHazardStatementPictograms Debug:');
-  console.log('- Input hazardStatements:', hazardStatements);
-  
   if (!hazardStatements || !Array.isArray(hazardStatements)) {
-    console.log('- No valid hazard statements array, returning empty');
     return [];
   }
   
-  const allPictograms = hazardStatements.flatMap(statement => {
-    const pictograms = getHazardStatementPictograms(statement);
-    console.log(`- Statement ${statement} -> pictograms:`, pictograms);
-    return pictograms;
-  });
-  
-  console.log('- All pictograms before dedup:', allPictograms);
+  const allPictograms = hazardStatements.flatMap(statement => 
+    getHazardStatementPictograms(statement)
+  );
   
   // Return unique pictograms
-  const uniquePictograms = [...new Set(allPictograms)];
-  console.log('- Unique pictograms:', uniquePictograms);
-  
-  return uniquePictograms;
+  return [...new Set(allPictograms)];
 };
 
 // Get hazard statement description
