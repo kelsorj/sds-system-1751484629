@@ -42,14 +42,15 @@ export const GHS_PICTOGRAM_MAPPING = {
 export const getPictogramImage = (pictogramId) => {
   if (!pictogramId) return null;
   
-  // Convert to lowercase and handle various formats
-  const normalizedId = pictogramId.toLowerCase().trim();
+  // Handle various formats - try original case first, then lowercase
+  const trimmedId = pictogramId.trim();
+  const normalizedId = trimmedId.toLowerCase();
   
-  return GHS_PICTOGRAM_MAPPING[normalizedId] || null;
+  return GHS_PICTOGRAM_MAPPING[trimmedId] || GHS_PICTOGRAM_MAPPING[normalizedId] || null;
 };
 
 // Get the full image URL for a pictogram
-export const getPictogramImageUrl = (pictogramId, baseUrl = '/api/ghspics') => {
+export const getPictogramImageUrl = (pictogramId, baseUrl = 'http://ekmbalps1.corp.eikontx.com:6443/api/sds/ghspics') => {
   const imageFile = getPictogramImage(pictogramId);
   if (!imageFile) return null;
   

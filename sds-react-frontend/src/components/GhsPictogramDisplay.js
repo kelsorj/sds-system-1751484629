@@ -12,6 +12,13 @@ const GhsPictogramChip = ({ pictogramId, onDelete, size = 'medium' }) => {
   );
 
   const chipSize = size === 'small' ? 24 : size === 'large' ? 48 : 32;
+
+  // Debug logging
+  console.log('GHS Pictogram Debug:');
+  console.log('- pictogramId:', pictogramId);
+  console.log('- imageUrl:', imageUrl);
+  console.log('- pictogramInfo:', pictogramInfo);
+  console.log('- chipSize:', chipSize);
   
   return (
     <Tooltip title={pictogramInfo?.name || pictogramId} arrow>
@@ -28,7 +35,12 @@ const GhsPictogramChip = ({ pictogramId, onDelete, size = 'medium' }) => {
                   objectFit: 'contain'
                 }}
                 onError={(e) => {
-                  // Hide image if it fails to load
+                  // Hide image if it fails to load and log the error
+                  console.error('GHS Image failed to load:', {
+                    pictogramId,
+                    imageUrl,
+                    error: e.target.src
+                  });
                   e.target.style.display = 'none';
                 }}
               />
@@ -128,6 +140,11 @@ const GhsPictogramImages = ({
               backgroundColor: '#fff'
             }}
             onError={(e) => {
+              console.error('GHS Image failed to load (Images component):', {
+                pictogram,
+                imageUrl,
+                error: e.target.src
+              });
               e.target.style.display = 'none';
             }}
           />
