@@ -6,6 +6,7 @@ import { sdsService } from '../services/sdsService';
 import { chemicalService } from '../services/chemicalService';
 import MuiAlert from '@mui/material/Alert';
 import { GhsPictogramDisplay } from '../components/GhsPictogramDisplay';
+import { CombinedPictogramDisplay } from '../components/CombinedPictogramDisplay';
 import { getAvailablePictograms } from '../utils/ghsPictogramMapping';
 
 const SDSViewer = () => {
@@ -517,14 +518,17 @@ const SDSViewer = () => {
                 <Typography variant="subtitle2" gutterBottom>
                   Pictograms
                 </Typography>
-                <GhsPictogramDisplay 
-                  pictograms={ghsData.pictograms}
+                <CombinedPictogramDisplay 
+                  ghsPictograms={ghsData.pictograms}
+                  hazardStatements={ghsData.hazard_statements}
                   onPictogramDelete={(index) => {
                     const newPictograms = [...ghsData.pictograms];
                     newPictograms.splice(index, 1);
                     handleGhsChange('pictograms', newPictograms);
                   }}
                   size="medium"
+                  showSource={true}
+                  showLabels={false}
                 />
                 <Autocomplete
                   multiple

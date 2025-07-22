@@ -1,5 +1,8 @@
 // GHS Pictogram mapping utility
 // Maps GHS pictogram codes to their corresponding image files
+// Also provides integration with hazard statement pictograms
+
+import { getAllHazardStatementPictograms } from './hazardPictogramMapping';
 
 export const GHS_PICTOGRAM_MAPPING = {
   // Standard GHS pictogram codes to image file mapping
@@ -70,4 +73,45 @@ export const getAvailablePictograms = () => {
     { code: 'GHS08', name: 'Health Hazard', image: 'health.png' },
     { code: 'GHS09', name: 'Environmental Hazard', image: 'environment.png' }
   ];
+};
+
+// Get combined pictograms from both GHS codes and hazard statements
+export const getCombinedPictograms = (ghsPictograms = [], hazardStatements = []) => {
+  console.log('getCombinedPictograms Debug:');
+  console.log('- Input ghsPictograms:', ghsPictograms);
+  console.log('- Input hazardStatements:', hazardStatements);
+  
+  // Get pictograms from explicit GHS codes
+  const explicitPictograms = Array.isArray(ghsPictograms) ? ghsPictograms : [];
+  console.log('- explicitPictograms:', explicitPictograms);
+  
+  // Get pictograms derived from hazard statements
+  const hazardDerivedPictograms = getAllHazardStatementPictograms(hazardStatements);
+  console.log('- hazardDerivedPictograms:', hazardDerivedPictograms);
+  
+  // Combine and deduplicate
+  const allPictograms = [...explicitPictograms, ...hazardDerivedPictograms];
+  const uniquePictograms = [...new Set(allPictograms)];
+  console.log('- uniquePictograms:', uniquePictograms);
+  
+  const filteredPictograms = uniquePictograms.filter(p => p && getPictogramImage(p));
+  console.log('- filteredPictograms:', filteredPictograms);
+  
+  return filteredPictograms;
+};
+
+// Get pictogram information with source indication
+export const getPictogramWithSource = (pictogramCode, ghsPictograms = [], hazardStatements = []) => {
+  const isExplicit = ghsPictograms.includes(pictogramCode);
+  const hazardDerived = getAllHazardStatementPictograms(hazardStatements).includes(pictogramCode);
+  
+  const availablePictograms = getAvailablePictograms();
+  const pictogramInfo = availablePictograms.find(p => p.code === pictogramCode);
+  
+  return {
+    ...pictogramInfo,
+    isExplicit,
+    hazardDerived,
+    source: isExplicit ? (hazardDerived ? 'both' : 'explicit') : 'hazard_statement'
+  };
 };

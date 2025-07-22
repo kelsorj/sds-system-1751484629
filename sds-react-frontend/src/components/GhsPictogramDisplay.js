@@ -1,6 +1,7 @@
 import React from 'react';
-import { Box, Chip, Tooltip, Typography } from '@mui/material';
-import { getPictogramImageUrl, getAvailablePictograms } from '../utils/ghsPictogramMapping';
+import { Box, Chip, Typography, Tooltip } from '@mui/material';
+import { getPictogramImageUrl, getAvailablePictograms, getCombinedPictograms, getPictogramWithSource } from '../utils/ghsPictogramMapping';
+import { getHazardStatementDescription } from '../utils/hazardPictogramMapping';
 
 // Component to display a single GHS pictogram with image
 const GhsPictogramChip = ({ pictogramId, onDelete, size = 'medium' }) => {

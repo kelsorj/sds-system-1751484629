@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import { sdsService } from '../services/sdsService';
 import { GhsPictogramImages } from '../components/GhsPictogramDisplay';
+import { CombinedPictogramImages } from '../components/CombinedPictogramDisplay';
 
 // Utility function to safely format dates
 const formatDate = (dateString) => {
@@ -216,16 +217,24 @@ const SDSDocuments = () => {
     page * rowsPerPage + rowsPerPage
   );
 
-  // Helper function to render GHS pictograms
-  const renderGhsPictograms = (pictograms) => {
-    if (!pictograms || pictograms.length === 0) return 'None';
+  // Helper function to render combined GHS and hazard statement pictograms
+  const renderGhsPictograms = (sdsData) => {
+    const ghsPictograms = sdsData?.pictograms || [];
+    const hazardStatements = sdsData?.hazard_statements || [];
+    
+    if ((!ghsPictograms || ghsPictograms.length === 0) && 
+        (!hazardStatements || hazardStatements.length === 0)) {
+      return 'None';
+    }
     
     return (
-      <GhsPictogramImages 
-        pictograms={pictograms}
+      <CombinedPictogramImages 
+        ghsPictograms={ghsPictograms}
+        hazardStatements={hazardStatements}
         size={24}
         showTooltips={true}
         maxImages={5}
+        showSource={true}
       />
     );
   };
@@ -320,7 +329,7 @@ const SDSDocuments = () => {
                           )}
                         </TableCell>
                         <TableCell>
-                          {renderGhsPictograms(doc.ghs_data?.pictograms)}
+                          {renderGhsPictograms(doc.ghs_data)}
                         </TableCell>
                         <TableCell align="right">
                           <Tooltip title="View SDS Details">
