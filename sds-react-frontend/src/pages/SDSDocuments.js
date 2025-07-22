@@ -172,12 +172,12 @@ const SDSDocuments = () => {
         filePath = `${casNumber}-SDS.pdf`;
       }
       
-      // Encode the file path for the URL
-      const encodedFilePath = encodeURIComponent(filePath);
-      const url = `/api/sds/download/${encodedFilePath}`;
+      // Download SDS file using the full API URL (same as ChemicalList)
+      const apiUrl = `${process.env.REACT_APP_API_URL || 'http://ekmbalps1.corp.eikontx.com:6443/api'}`;
+      const sdsUrl = `${apiUrl}/sds/download/${encodeURIComponent(filePath)}`;
       
-      // Open in a new tab
-      window.open(url, '_blank');
+      // Open the SDS file in a new tab
+      window.open(sdsUrl, '_blank');
     } catch (error) {
       console.error('Error downloading SDS:', error);
       // Handle error appropriately (e.g., show error notification)
@@ -303,22 +303,9 @@ const SDSDocuments = () => {
                             <Box>
                               {doc.sds_files.map((file, index) => (
                                 <Box key={file.id} display="flex" alignItems="center" mb={index < doc.sds_files.length - 1 ? 1 : 0}>
-                                  <Typography variant="body2" sx={{ mr: 1 }}>
+                                  <Typography variant="body2">
                                     {file.filename} ({file.source}, {file.date_added})
                                   </Typography>
-                                  <Tooltip title="Download SDS">
-                                    <IconButton 
-                                      color="primary" 
-                                      onClick={() => downloadSds({
-                                        cas_number: doc.cas_number,
-                                        filename: doc.sds_files[0].filename,
-                                        file_path: doc.file_path
-                                      })}
-                                      size="small"
-                                    >
-                                      <GetAppIcon />
-                                    </IconButton>
-                                  </Tooltip>
                                 </Box>
                               ))}
                             </Box>
