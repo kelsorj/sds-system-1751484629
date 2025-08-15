@@ -164,87 +164,42 @@ const ChemicalList = () => {
     page * rowsPerPage + rowsPerPage
   );
 
-  // Highly visible component to display SMILES codes (impossible to miss)
-  const SmilesStructure = ({ smiles, id }) => {
-    // Using extremely high contrast colors to ensure visibility
-    console.log(`Rendering SmilesStructure for ${id} with SMILES: ${smiles}`);
+
+
+  // Helper component to render NFPA flammability with color coding
+  const NfpaFlammability = ({ rating }) => {
+    if (rating === null || rating === undefined) {
+      return <Typography color="textSecondary" variant="body2">N/A</Typography>;
+    }
     
+    const getColor = (rating) => {
+      switch (rating) {
+        case 0: return '#FFFFFF'; // White
+        case 1: return '#FF0000'; // Red
+        case 2: return '#FF6600'; // Orange
+        case 3: return '#FFFF00'; // Yellow
+        case 4: return '#FF0000'; // Red (same as 1, but more intense)
+        default: return '#CCCCCC'; // Gray
+      }
+    };
+
     return (
-      <Box 
-        width={150} 
-        height={100} 
-        display="flex" 
-        alignItems="center" 
-        justifyContent="center" 
-        bgcolor="#ff0000" // Bright red background
-        border="3px solid #000000" // Thick black border
-        borderRadius={2}
-        boxShadow="0 4px 8px rgba(0,0,0,0.5)"
-        overflow="hidden"
-        position="relative"
-        style={{ margin: '10px 0' }} // Add extra margin to make it stand out
+      <Box
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        width={40}
+        height={40}
+        borderRadius="50%"
+        bgcolor={getColor(rating)}
+        border="2px solid #000"
+        sx={{ 
+          color: rating === 0 ? '#000' : '#000',
+          fontWeight: 'bold',
+          fontSize: '14px'
+        }}
       >
-        <Box 
-          display="flex" 
-          flexDirection="column" 
-          alignItems="center" 
-          justifyContent="center"
-          p={1} 
-          width="100%"
-          height="100%"
-          bgcolor="#ffff00" // Bright yellow inner box
-          border="2px dashed #000000" // Dashed border for contrast
-        >
-          <Typography 
-            variant="subtitle2" 
-            sx={{ 
-              color: '#000000', 
-              fontWeight: 'bold',
-              fontSize: '14px',
-              mb: 1,
-              textTransform: 'uppercase',
-              textAlign: 'center'
-            }}
-          >
-            SMILES
-          </Typography>
-          
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              fontSize: '12px',
-              fontWeight: 'bold',
-              backgroundColor: '#ffffff',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              border: '1px solid #000000',
-              width: '90%',
-              textAlign: 'center',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {smiles || 'N/A'}
-          </Typography>
-          
-          <Typography 
-            variant="caption"
-            sx={{ 
-              position: 'absolute',
-              bottom: '5px',
-              right: '5px',
-              fontSize: '10px',
-              fontWeight: 'bold',
-              color: '#000000',
-              backgroundColor: '#ffffff',
-              padding: '2px 4px',
-              borderRadius: '2px'
-            }}
-          >
-            ID: {id}
-          </Typography>
-        </Box>
+        {rating}
       </Box>
     );
   };
@@ -348,6 +303,10 @@ const ChemicalList = () => {
                       </TableSortLabel>
                     </TableCell>
                     <TableCell>Structure</TableCell>
+                    <TableCell>GHS Category</TableCell>
+                    <TableCell>NFPA Class</TableCell>
+                    <TableCell>NFPA Flammability</TableCell>
+                    <TableCell>Fire Code Type</TableCell>
                     <TableCell>Location</TableCell>
                     <TableCell>SDS</TableCell>
                     <TableCell align="right">Actions</TableCell>
@@ -356,7 +315,7 @@ const ChemicalList = () => {
                 <TableBody>
                   {paginatedChemicals.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center">
+                      <TableCell colSpan={12} align="center">
                         No chemicals found
                       </TableCell>
                     </TableRow>
@@ -379,7 +338,7 @@ const ChemicalList = () => {
                             showStructures ? (
                               <MoleculeViewer 
                                 smiles={chemical.smiles} 
-                                width={100} 
+                                width={120} 
                                 height={80} 
                                 compact 
                               />
@@ -402,6 +361,18 @@ const ChemicalList = () => {
                           ) : (
                             <Typography color="textSecondary" variant="body2">N/A</Typography>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {chemical.ghs_category || <Typography color="textSecondary" variant="body2">N/A</Typography>}
+                        </TableCell>
+                        <TableCell>
+                          {chemical.nfpa?.nfpaClass || <Typography color="textSecondary" variant="body2">N/A</Typography>}
+                        </TableCell>
+                        <TableCell>
+                          <NfpaFlammability rating={chemical.nfpa?.nfpaFlammability} />
+                        </TableCell>
+                        <TableCell>
+                          {chemical.nfpa?.fireCodeType || <Typography color="textSecondary" variant="body2">N/A</Typography>}
                         </TableCell>
                         <TableCell>{chemical.location || <Typography color="textSecondary" variant="body2">N/A</Typography>}</TableCell>
                         <TableCell>
