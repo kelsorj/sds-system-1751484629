@@ -1,26 +1,26 @@
-import axios from 'axios';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://ekmbalps1.corp.eikontx.com:6443/api';
+const fs = require('fs');
+const path = require('path');
 
 // Cache for the translation rules
 let translationRules = null;
 
-export const translationService = {
-  // Load translation rules from the backend
-  async loadTranslationRules() {
+class TranslationService {
+  // Load translation rules from JSON file
+  loadTranslationRules() {
     if (translationRules) {
       return translationRules; // Return cached rules
     }
     
     try {
-      const response = await axios.get(`${API_URL}/ghs-nfpa-rules`);
-      translationRules = response.data;
+      const rulesPath = path.join(__dirname, '../data/ghs_to_nfpa_rules.json');
+      const rulesData = fs.readFileSync(rulesPath, 'utf8');
+      translationRules = JSON.parse(rulesData);
       return translationRules;
     } catch (error) {
       console.error('Error loading GHS-NFPA translation rules:', error);
       throw error;
     }
-  },
+  }
 
   // Check if a value satisfies a constraint
   checkConstraint(value, constraint) {
@@ -37,7 +37,7 @@ export const translationService = {
     }
     
     return true;
-  },
+  }
 
   // Check if all rules in a rule set are satisfied
   checkRuleSet(ruleSet, flashPointF, boilingPointF) {
@@ -65,13 +65,12 @@ export const translationService = {
     }
     
     return null; // No matching rule found
-  },
+  }
 
   // Main translation function
   translateGhsToNfpa(ghsCategory, flashPointF = null, boilingPointF = null) {
     if (!translationRules) {
-      console.warn('Translation rules not loaded yet');
-      return null;
+      this.loadTranslationRules();
     }
 
     const categoryRules = translationRules.ghs_to_nfpa[ghsCategory];
@@ -93,13 +92,15 @@ export const translationService = {
     }
     
     return null;
-  },
+  }
 
   // Get all available GHS categories
   getAvailableGhsCategories() {
-    if (!translationRules) return [];
+    if (!translationRules) {
+      this.loadTranslationRules();
+    }
     return Object.keys(translationRules.ghs_to_nfpa);
-  },
+  }
 
   // Get NFPA flammability color based on rating
   getNfpaFlammabilityColor(rating) {
@@ -111,7 +112,7 @@ export const translationService = {
       case 4: return '#FF0000'; // Red (same as 1, but more intense)
       default: return '#CCCCCC'; // Gray
     }
-  },
+  }
 
   // Get NFPA flammability description
   getNfpaFlammabilityDescription(rating) {
@@ -124,4 +125,26 @@ export const translationService = {
       default: return 'Unknown';
     }
   }
-};
+
+  // Translate a list of chemicals with GHS data to include NFPA data
+  translateChemicalsList(chemicals) {
+    if (!translationRules) {
+      this.loadTranslationRules();
+    }
+
+    return chemicals.map(chemical => {
+      const nfpaData = this.translateGhsToNfpa(
+        chemical.ghs_category,
+        chemical.flash_point_f,
+        chemical.boiling_point_f
+      );
+
+      return {
+        ...chemical,
+        nfpa: nfpaData
+      };
+    });
+  }
+}
+
+module.exports = new TranslationService();
