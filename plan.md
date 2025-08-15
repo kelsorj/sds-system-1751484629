@@ -15,10 +15,9 @@ A secure web-based system to manage Safety Data Sheets (SDS) for chemicals by CA
 ## Goals
 
 ### ✅ Must-Have
-- [ ] Upload and store SDS PDFs associated with CAS#s
+- [] Upload and store SDS PDFs associated with CAS#s
 - [ ] Metadata model: CAS#, chemical name, PDF URL, source
-- [ ] Scraper module: periodically (1h) crawl known sources for missing SDS files
-- [ ] Database: track amount onsite per CAS# and room location(s)
+- [ ] Scraper module: periodically (1h) crawl known sources for missing SDS files and store them in the database
 - [ ] Web UI to view SDS, room inventories, and add/edit records
 - [ ] RESTful API endpoints for all CRUD operations
 - [ ] Logging and versioning of SDS uploads (optional retention of previous versions)

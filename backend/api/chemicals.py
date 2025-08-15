@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from backend.api.database import get_db
 from backend.core.inventory_manager import InventoryManager
+from backend.utils.ghs_nfpa_translator import translator as ghs_nfpa_translator
 
 router = APIRouter()
 
@@ -48,6 +49,13 @@ class ChemicalUpdate(BaseModel):
     signal_word: Optional[str] = None
     notes: Optional[str] = None
 
+class NFPAData(BaseModel):
+    nfpa_class: Optional[str] = None
+    nfpa_flammability: Optional[int] = None
+    fire_code_type: Optional[str] = None
+    flash_point_description: Optional[str] = None
+    boiling_point_description: Optional[str] = None
+
 class ChemicalResponse(BaseModel):
     id: int
     cas_number: str
@@ -69,6 +77,9 @@ class ChemicalResponse(BaseModel):
     notes: Optional[str]
     created_at: Optional[str]
     updated_at: Optional[str]
+    flash_point_f: Optional[float] = None
+    boiling_point_f: Optional[float] = None
+    nfpa_data: Optional[NFPAData] = None
 
 @router.get("/", response_model=List[ChemicalResponse])
 async def get_chemicals(
@@ -86,7 +97,34 @@ async def get_chemicals(
         supplier=supplier,
         low_stock=low_stock
     )
-    return chemicals
+    
+    # Add NFPA data to each chemical
+    return [_add_nfpa_data(chem) for chem in chemicals]
+
+def _add_nfpa_data(chemical: Dict[str, Any]) -> Dict[str, Any]:
+    """Add NFPA data to chemical response"""
+    if not chemical:
+        return chemical
+    
+    # Get GHS category from hazard_class if available
+    ghs_category = None
+    if chemical.get('hazard_class'):
+        # Try to extract GHS category from hazard_class
+        for cat in ['Category 1', 'Category 2', 'Category 3', 'Category 4']:
+            if cat in chemical['hazard_class']:
+                ghs_category = cat
+                break
+    
+    # If we have a GHS category, get NFPA data
+    if ghs_category:
+        nfpa_data = ghs_nfpa_translator.translate_ghs_to_nfpa(
+            ghs_category=ghs_category,
+            flash_point_f=chemical.get('flash_point_f'),
+            boiling_point_f=chemical.get('boiling_point_f')
+        )
+        chemical['nfpa_data'] = nfpa_data
+    
+    return chemical
 
 @router.get("/{cas_number}", response_model=ChemicalResponse)
 async def get_chemical(cas_number: str, db: Session = Depends(get_db)):
@@ -99,6 +137,9 @@ async def get_chemical(cas_number: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Chemical with CAS {cas_number} not found"
         )
+    
+    # Add NFPA data to the response
+    chemical = _add_nfpa_data(chemical)
     
     return chemical
 

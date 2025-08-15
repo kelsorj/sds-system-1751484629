@@ -41,6 +41,10 @@ class Chemical(Base):
     precautionary_statement = Column(Text)
     signal_word = Column(String(20))
     
+    # Physical properties for NFPA classification
+    flash_point_f = Column(Float, comment='Flash point in Fahrenheit')
+    boiling_point_f = Column(Float, comment='Boiling point in Fahrenheit')
+    
     # Metadata
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

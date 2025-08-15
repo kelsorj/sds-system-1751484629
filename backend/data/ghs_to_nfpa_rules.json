@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0",
+  "units": {
+    "flash_point": "F",
+    "boiling_point": "F"
+  },
+  "notes": "Rules are evaluated per GHS category from top to bottom until one matches.\nA rule matches when all provided constraints are satisfied. Omitted constraints are treated as 'any'.\nUse strictly_less when max_inclusive is false, and greater_or_equal when min_inclusive is true.",
+  "ghs_to_nfpa": {
+    "Category 1": [
+      {
+        "rule": {
+          "flash_point_f": {
+            "max": 73,
+            "max_inclusive": false
+          },
+          "boiling_point_f": {
+            "max": 100,
+            "max_inclusive": false
+          }
+        },
+        "output": {
+          "nfpa_class": "Class IA",
+          "nfpa_flammability": 4,
+          "fire_code_type": "Flammable Liquid",
+          "flash_point_description": "< 73 F",
+          "boiling_point_description": "< 100 F"
+        }
+      }
+    ],
+    "Category 2": [
+      {
+        "rule": {
+          "flash_point_f": {
+            "max": 73,
+            "max_inclusive": false
+          },
+          "boiling_point_f": {
+            "min": 100,
+            "min_inclusive": true
+          }
+        },
+        "output": {
+          "nfpa_class": "Class IB",
+          "nfpa_flammability": 4,
+          "fire_code_type": "Flammable Liquid",
+          "flash_point_description": "< 73 F",
+          "boiling_point_description": "\u2265 100 F"
+        }
+      }
+    ],
+    "Category 3": [
+      {
+        "rule": {
+          "flash_point_f": {
+            "min": 73,
+            "min_inclusive": true,
+            "max": 100,
+            "max_inclusive": false
+          }
+        },
+        "output": {
+          "nfpa_class": "Class IC",
+          "nfpa_flammability": 3,
+          "fire_code_type": "Flammable Liquid",
+          "flash_point_description": "\u2265 73 F and < 100 F",
+          "boiling_point_description": "Any"
+        }
+      },
+      {
+        "rule": {
+          "flash_point_f": {
+            "min": 100,
+            "min_inclusive": true,
+            "max": 140,
+            "max_inclusive": false
+          }
+        },
+        "output": {
+          "nfpa_class": "Class II",
+          "nfpa_flammability": 2,
+          "fire_code_type": "Combustible Liquid",
+          "flash_point_description": "\u2265 100 F and < 140 F",
+          "boiling_point_description": "Any"
+        }
+      }
+    ],
+    "Category 4": [
+      {
+        "rule": {
+          "flash_point_f": {
+            "min": 140,
+            "min_inclusive": true,
+            "max": 200,
+            "max_inclusive": false
+          }
+        },
+        "output": {
+          "nfpa_class": "Class IIIA",
+          "nfpa_flammability": 1,
+          "fire_code_type": "Combustible Liquid",
+          "flash_point_description": "\u2265 140 F and < 200 F",
+          "boiling_point_description": "Any"
+        }
+      }
+    ],
+    "Not classified": [
+      {
+        "rule": {
+          "flash_point_f": {
+            "min": 200,
+            "min_inclusive": true
+          }
+        },
+        "output": {
+          "nfpa_class": "Class IIIB",
+          "nfpa_flammability": 1,
+          "fire_code_type": "Combustible Liquid",
+          "flash_point_description": "\u2265 200 F",
+          "boiling_point_description": "Any"
+        }
+      }
+    ]
+  }
+}
